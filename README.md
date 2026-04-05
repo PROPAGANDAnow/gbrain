@@ -20,19 +20,61 @@ AI agents maintain the brain. You ingest a meeting and the agent updates every p
 
 ## Install
 
+### With OpenClaw (recommended)
+
+If you're running OpenClaw, just tell it to set up your brain:
+
+```
+You: "Install gbrain and set up my knowledge brain"
+```
+
+OpenClaw will:
+1. Install gbrain as a dependency (`bun add gbrain`)
+2. Run the guided Supabase setup wizard
+3. Import a demo corpus so you can try a query immediately
+4. Register all 6 brain skills (ingest, query, maintain, enrich, briefing, migrate)
+
+After setup, you talk to your brain through OpenClaw:
+
+```
+You: "What do we know about River AI?"
+You: "Ingest my meeting notes from today"
+You: "Who is connected to Jensen Huang?"
+You: "Give me a briefing for my meetings tomorrow"
+You: "Import my Obsidian vault into the brain"
+```
+
+OpenClaw reads the skill files, figures out which gbrain commands to run, and does the work. You never touch the CLI directly unless you want to.
+
+### With ClawHub
+
+```bash
+clawhub install gbrain
+```
+
+This installs the npm package, copies the skill files, and runs `gbrain init --supabase` on first use.
+
+### Standalone CLI
+
 ```bash
 npm install -g gbrain
 ```
 
-Or use as a library in your own project:
+### As a library
 
 ```bash
 bun add gbrain
 ```
 
-Requires a Postgres database with pgvector. Supabase Pro ($25/mo) is the recommended zero-ops option.
+```typescript
+import { PostgresEngine } from 'gbrain';
+```
+
+All paths require a Postgres database with pgvector. Supabase Pro ($25/mo) is the recommended zero-ops option.
 
 ## Setup
+
+After installing via CLI or library path, run the setup wizard:
 
 ```bash
 # Guided wizard: auto-provisions Supabase or accepts a connection URL
@@ -50,6 +92,8 @@ The init wizard:
 5. Verifies the connection and prints your first query to try
 
 Config is saved to `~/.gbrain/config.json` with 0600 permissions.
+
+OpenClaw users skip this step. The orchestrator runs the wizard for you during install.
 
 ## First import
 
