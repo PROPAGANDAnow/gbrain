@@ -1,57 +1,91 @@
 # GBrain
 
-The memex Vannevar Bush imagined, built for people who think for a living.
+Your AI agent is smart but it doesn't know anything about your life. GBrain fixes that. Meetings, emails, tweets, calendar events, voice calls, original ideas... all of it flows into a searchable knowledge base that your agent reads before every response and writes to after every conversation. The agent gets smarter every day.
 
-## How this happened
+> **Requires a frontier model.** Tested with **Claude Opus 4.6** and **GPT-5.4 Thinking**. Likely to break with smaller models.
 
-I was setting up my [OpenClaw](https://openclaw.ai) agent and started a markdown brain repo. One page per person, one page per company, compiled truth on top, append-only timeline on the bottom. The agent got smarter the more it knew, so I kept feeding it. Meetings, emails, tweets, Apple Notes, calendar data, original ideas. One thing led to another. Within a week I had:
+## Start here: paste this into your agent
 
-- **10,000+ markdown files** indexed and searchable
-- **3,000+ people** with compiled dossiers and relationship history
-- **13 years of calendar data** (21,000+ events)
-- **5,800+ Apple Notes** going back to 2009
-- **280+ meeting transcripts** with AI analysis
-- **300+ captured original ideas** organized by thesis
-- **500+ media pages** (video transcripts, books, articles)
-- Company profiles, food guides, travel logs
+Copy this block into [OpenClaw](https://openclaw.ai) or [Hermes Agent](https://github.com/NousResearch/hermes-agent). The agent will install GBrain, set up your database, import your files, and verify everything works.
 
-This is what I actually use day to day. The agent runs while I sleep... literally. The dream cycle scans every conversation from the day, enriches missing entities, fixes broken citations, and consolidates memory. I wake up and the brain is smarter than when I went to sleep. OpenClaw ships this as DREAMS.md. Hermes Agent can do the same with a nightly cron job (see the [SKILLPACK](docs/GBRAIN_SKILLPACK.md#the-dream-cycle) for setup).
+```
+GOAL: Install GBrain so I can search my own markdown files with
+hybrid search (keyword + vector). Do not skip steps. Verify each
+step before proceeding. If a step fails, stop and fix it.
 
 **You don't need a server to start.** `gbrain init` now defaults to PGLite -- embedded Postgres 17.5 running via WASM, right on your machine. No Supabase account, no Docker, no connection strings. One command and you have a full Postgres brain with pgvector, hybrid search, and all 37 operations. When your brain outgrows local (1,000+ files), `gbrain migrate --to supabase` moves everything to managed Postgres in one shot.
 
 The knowledge model is just markdown files in a git repo. The [skills](docs/GBRAIN_SKILLPACK.md) and [schema](docs/GBRAIN_RECOMMENDED_SCHEMA.md) work with any AI agent that can read and write files.
 
-I added Postgres + pgvector later because at 1,000 to 10,000 long markdown docs, `grep` stops working. You need real chunking, real retrieval, real search. GBrain is the thin CLI and MCP layer I built on top of Postgres to solve that, optimized for OpenClaw and smart agents.
+STEP 1 — INSTALL
+  curl -fsSL https://bun.sh/install | bash && source ~/.bashrc
+  bun add github:garrytan/gbrain
+  Verify: gbrain --version
 
-### Ask it anything
+STEP 2 — DATABASE
+  Run: gbrain init --supabase
+  Ask the user for their Supabase Shared Pooler connection string:
+    "Go to https://supabase.com → your project → Get Connected →
+     Direct Connection String → Session Pooler → copy Shared Pooler"
+  Do NOT ask for the anon key or project URL. Those are wrong.
+  Verify: gbrain doctor --json (all checks pass)
 
-> "Who should I invite to dinner who knows both Pedro and Diana?"
-> — cross-references the social graph across 3,000+ people pages
+STEP 3 — IMPORT
+  Find markdown: find ~/git ~/Documents ~/notes -maxdepth 3 -name "*.md" | head -30
+  Tell user what you found. Import: gbrain import /path/ --no-embed
+  Verify: gbrain stats (page count > 0)
 
-> "What have I said about the relationship between shame and founder performance?"
-> — searches YOUR thinking, not the internet
+STEP 4 — SEARCH
+  Run: gbrain embed --stale (generates vector embeddings, ~1 min per 1000 pages)
+  Then: gbrain query "what are the key themes across these documents?"
+  Show the user the results. This is the magic moment.
+  Verify: results include semantic matches, not just keyword hits
 
-> "What changed with the Series A since Tuesday?"
-> — diffs timeline entries across deal and company pages
+STEP 5 — GO LIVE
+  a. Read docs/GBRAIN_SKILLPACK.md — adopt brain-first lookup, entity
+     detection, and back-linking into your behavior immediately
+  b. Set up live sync: gbrain sync --repo /path/ && gbrain embed --stale
+     (see docs/guides/live-sync.md for cron/watch/webhook options)
+  c. Set up auto-update: gbrain check-update --json on a daily cron
+     (never auto-install — always ask the user first)
+  d. Show available integrations: gbrain integrations
+  e. Run verification: read and execute docs/GBRAIN_VERIFY.md
 
-> "Prep me for my meeting with Jordan in 30 minutes"
-> — pulls dossier, shared history, recent activity, open threads
+DONE. Tell the user: "GBrain is live. You have [N] pages with hybrid
+search. I now check the brain before answering questions. Run
+'gbrain integrations' to add voice, email, calendar, or Twitter."
+```
 
-Your markdown repo is the source of truth. GBrain makes it searchable. Your AI agent makes it live.
+### Without an agent (standalone CLI)
 
-## Why Postgres
+```bash
+bun add -g github:garrytan/gbrain
+gbrain init --supabase          # guided wizard
+gbrain import ~/git/brain/      # index your markdown
+gbrain query "what do we know about competitive dynamics?"
+```
 
-At 500 files, `grep` is fine. At 3,000 people pages, 5,800 Apple Notes, and 13 years of calendar data, `grep` falls apart. You need keyword search for exact names, vector search for semantic meaning, and something that fuses both. You need an index that updates incrementally when one file changes, not a full directory walk. You need your agent to find "everyone who was at the board dinner last March" in milliseconds, not 30 seconds of grepping.
+Run `gbrain --help` for all commands. See [MCP setup](docs/mcp/DEPLOY.md) for connecting Claude Desktop, Perplexity, etc.
 
-GBrain gives you hybrid search that combines keyword and vector approaches, plus a knowledge model that treats every page like an intelligence assessment: compiled truth on top (your current best understanding, rewritten when evidence changes), append-only timeline on the bottom (the evidence trail that never gets edited).
+## Getting Data In
 
-AI agents maintain the brain. You ingest a document and the agent updates every entity mentioned, creates cross-reference links, and appends timeline entries. MCP clients query it. The intelligence lives in fat markdown skills, not application code.
+Once GBrain is installed, your agent needs data flowing in. GBrain ships integration recipes that your agent sets up for you. It reads the recipe, asks for API keys, validates each one, and runs a smoke test. [Markdown is code](docs/ethos/THIN_HARNESS_FAT_SKILLS.md)... the recipe IS the installer.
+
+| Recipe | Requires | What It Does |
+|--------|----------|-------------|
+| [Public Tunnel](recipes/ngrok-tunnel.md) | — | Fixed URL for MCP + voice (ngrok Hobby $8/mo) |
+| [Credential Gateway](recipes/credential-gateway.md) | — | Gmail + Calendar access (ClawVisor or Google OAuth) |
+| [Voice-to-Brain](recipes/twilio-voice-brain.md) | ngrok-tunnel | Phone calls → brain pages (Twilio + OpenAI Realtime) |
+| [Email-to-Brain](recipes/email-to-brain.md) | credential-gateway | Gmail → entity pages (deterministic collector) |
+| [X-to-Brain](recipes/x-to-brain.md) | — | Twitter → brain pages (timeline + mentions + deletions) |
+| [Calendar-to-Brain](recipes/calendar-to-brain.md) | credential-gateway | Google Calendar → searchable daily pages |
+| [Meeting Sync](recipes/meeting-sync.md) | — | Circleback transcripts → brain pages with attendees |
+
+Run `gbrain integrations` to see status. Dependencies resolve automatically. See [Getting Data In](docs/integrations/README.md) for the full guide.
 
 ## The Compounding Thesis
 
 Most tools help you find things. GBrain makes you smarter over time.
-
-The core loop:
 
 ```
 Signal arrives (meeting, email, tweet, link)
@@ -62,11 +96,28 @@ Signal arrives (meeting, email, tweet, link)
   → Sync: gbrain indexes changes for next query
 ```
 
-Every cycle through this loop adds knowledge. The agent enriches a person page after a meeting. Next time that person comes up, the agent already has context — their role, your history, what they care about, what you discussed last time. You never start from zero.
+Every cycle through this loop adds knowledge. The agent enriches a person page after a meeting. Next time that person comes up, the agent already has context. You never start from zero.
 
 An agent without this loop answers from stale context. An agent with it gets smarter every conversation. The difference compounds daily.
 
-Never do anything twice. If you look someone up once, that lookup lives in the brain forever. If a pattern emerges across three meetings, the agent captures it. If you generate an original idea in conversation, it goes to `originals/` — your searchable intellectual archive.
+> "Who should I invite to dinner who knows both Pedro and Diana?"
+> — cross-references the social graph across 3,000+ people pages
+
+> "What have I said about the relationship between shame and founder performance?"
+> — searches YOUR thinking, not the internet
+
+> "Prep me for my meeting with Jordan in 30 minutes"
+> — pulls dossier, shared history, recent activity, open threads
+
+## How this happened
+
+I was setting up my [OpenClaw](https://openclaw.ai) agent and started a markdown brain repo. One page per person, one page per company, compiled truth on top, append-only timeline on the bottom. The agent got smarter the more it knew, so I kept feeding it. Within a week I had 10,000+ markdown files, 3,000+ people with compiled dossiers, 13 years of calendar data, 280+ meeting transcripts, and 300+ captured original ideas.
+
+The agent runs while I sleep. The dream cycle scans every conversation, enriches missing entities, fixes broken citations, and consolidates memory. I wake up and the brain is smarter than when I went to sleep. See the [cron schedule guide](docs/guides/cron-schedule.md) for setup.
+
+**You don't need Postgres to start.** The knowledge model is just markdown files in a git repo. The [skills](docs/GBRAIN_SKILLPACK.md) and [schema](docs/GBRAIN_RECOMMENDED_SCHEMA.md) work with any AI agent that can read and write files.
+
+**When you need Postgres:** at 1,000+ files, `grep` stops working. GBrain adds hybrid search (keyword + vector + RRF fusion) on top of Postgres + pgvector. The CLI and MCP layer handle chunking, embedding, and incremental sync. Add Postgres when search speed matters, or when you want Claude Desktop, ChatGPT, Perplexity, or other MCP clients to connect to your brain remotely.
 
 ## Architecture
 
@@ -742,12 +793,21 @@ Initial embedding cost: ~$4-5 for 7,500 pages via OpenAI text-embedding-3-large.
 
 ## Docs
 
-- **[GBRAIN_SKILLPACK.md](docs/GBRAIN_SKILLPACK.md)** -- **Start here for agents.** Reference architecture for production agents: brain-agent loop, entity detection, enrichment pipeline, meeting ingestion, cron schedule
-- [GBRAIN_RECOMMENDED_SCHEMA.md](docs/GBRAIN_RECOMMENDED_SCHEMA.md) -- The recommended brain schema: MECE directories, compiled truth + timeline, enrichment pipelines, resolver decision tree
-- [GBRAIN_V0.md](docs/GBRAIN_V0.md) -- Full product spec, all architecture decisions, every option considered
-- [ENGINES.md](docs/ENGINES.md) -- Pluggable engine interface: PGLite (default) + Postgres, capability matrix, migration, how to add backends
-- [SQLITE_ENGINE.md](docs/SQLITE_ENGINE.md) -- Historical SQLite engine plan (superseded by PGLite in v0.7)
-- [GBRAIN_VERIFY.md](docs/GBRAIN_VERIFY.md) -- Installation verification runbook: schema, live sync, embeddings, brain-first lookup
+**For agents:**
+- **[GBRAIN_SKILLPACK.md](docs/GBRAIN_SKILLPACK.md)** -- **Start here.** Index of all patterns, skills, and integrations
+- [Individual guides](docs/guides/) -- 17 standalone guides broken out from the skillpack
+- [Getting Data In](docs/integrations/README.md) -- Integration recipes, credential setup, data flow patterns
+- [GBRAIN_VERIFY.md](docs/GBRAIN_VERIFY.md) -- Installation verification runbook
+
+**For humans:**
+- [GBRAIN_RECOMMENDED_SCHEMA.md](docs/GBRAIN_RECOMMENDED_SCHEMA.md) -- Brain repo directory structure
+- [Infrastructure Layer](docs/architecture/infra-layer.md) -- How import, chunking, embedding, and search work
+- [Thin Harness, Fat Skills](docs/ethos/THIN_HARNESS_FAT_SKILLS.md) -- Architecture philosophy
+- [Homebrew for Personal AI](docs/ethos/MARKDOWN_SKILLS_AS_RECIPES.md) -- Why markdown is code
+
+**Reference:**
+- [GBRAIN_V0.md](docs/GBRAIN_V0.md) -- Full product spec, all architecture decisions
+- [ENGINES.md](docs/ENGINES.md) -- Pluggable engine interface: PGLite (default) + Postgres, capability matrix, migration
 
 ## Contributing
 

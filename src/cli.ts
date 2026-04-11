@@ -18,7 +18,7 @@ for (const op of operations) {
 }
 
 // CLI-only commands that bypass the operation layer
-const CLI_ONLY = new Set(['init', 'upgrade', 'check-update', 'import', 'export', 'files', 'embed', 'serve', 'call', 'config', 'doctor']);
+const CLI_ONLY = new Set(['init', 'upgrade', 'check-update', 'integrations', 'import', 'export', 'files', 'embed', 'serve', 'call', 'config', 'doctor']);
 
 async function main() {
   const args = process.argv.slice(2);
@@ -237,6 +237,11 @@ async function handleCliOnly(command: string, args: string[]) {
     await runCheckUpdate(args);
     return;
   }
+  if (command === 'integrations') {
+    const { runIntegrations } = await import('./commands/integrations.ts');
+    await runIntegrations(args);
+    return;
+  }
 
   // All remaining CLI-only commands need a DB connection
   const engine = await connectEngine();
@@ -337,6 +342,7 @@ SETUP
   upgrade                            Self-update
   check-update [--json]              Check for new versions
   doctor [--json]                    Health check (pgvector, RLS, schema, embeddings)
+  integrations [subcommand]          Manage integration recipes (senses + reflexes)
 
 PAGES
   get <slug>                         Read a page

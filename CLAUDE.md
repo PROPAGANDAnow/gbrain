@@ -36,6 +36,20 @@ markdown files (tool-agnostic, work with both CLI and plugin contexts).
 - `src/commands/auth.ts` — Standalone token management (create/list/revoke/test)
 - `src/core/schema-embedded.ts` — AUTO-GENERATED from schema.sql (run `bun run build:schema`)
 - `src/schema.sql` — Full Postgres + pgvector DDL (source of truth, generates schema-embedded.ts)
+- `src/commands/integrations.ts` — Standalone integration recipe management (no DB needed)
+- `recipes/` — Integration recipe files (YAML frontmatter + markdown setup instructions)
+- `docs/guides/` — Individual SKILLPACK guides (broken out from monolith)
+- `docs/integrations/` — "Getting Data In" guides and integration docs
+- `docs/architecture/infra-layer.md` — Shared infrastructure documentation
+- `docs/ethos/THIN_HARNESS_FAT_SKILLS.md` — Architecture philosophy essay
+- `docs/ethos/MARKDOWN_SKILLS_AS_RECIPES.md` — "Homebrew for Personal AI" essay
+- `docs/guides/repo-architecture.md` — Two-repo pattern (agent vs brain)
+- `docs/guides/sub-agent-routing.md` — Model routing table for sub-agents
+- `docs/guides/skill-development.md` — 5-step skill development cycle + MECE
+- `docs/guides/idea-capture.md` — Originality distribution, depth test, cross-linking
+- `docs/guides/quiet-hours.md` — Notification hold + timezone-aware delivery
+- `docs/guides/diligence-ingestion.md` — Data room to brain pages pipeline
+- `docs/designs/HOMEBREW_FOR_PERSONAL_AI.md` — 10-star vision for integration system
 - `scripts/deploy-remote.sh` — One-script remote MCP deployment
 - `docs/mcp/` — Per-client setup guides (Claude Desktop, Code, Cowork, Perplexity, ChatGPT)
 - `openclaw.plugin.json` — ClawHub bundle plugin manifest
@@ -64,7 +78,8 @@ parity), `test/cli.test.ts` (CLI structure), `test/config.test.ts` (config redac
 `test/storage.test.ts` (storage backends), `test/supabase-admin.test.ts` (Supabase admin),
 `test/yaml-lite.test.ts` (YAML parsing), `test/check-update.test.ts` (version check + update CLI),
 `test/pglite-engine.test.ts` (PGLite engine, all 37 BrainEngine methods),
-`test/utils.test.ts` (shared SQL utilities), `test/engine-factory.test.ts` (engine factory + dynamic imports).
+`test/utils.test.ts` (shared SQL utilities), `test/engine-factory.test.ts` (engine factory + dynamic imports),
+`test/integrations.test.ts` (recipe parsing, CLI routing, recipe validation).
 
 E2E tests (`test/e2e/`): Run against real Postgres+pgvector. Require `DATABASE_URL`.
 - `bun run test:e2e` runs Tier 1 (mechanical, all operations, no API keys)
