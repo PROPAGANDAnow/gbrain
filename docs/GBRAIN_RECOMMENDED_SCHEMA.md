@@ -118,29 +118,27 @@ brain/
 ├── companies/         — one page per organization
 │   ├── README.md
 │   └── .raw/
-├── deals/             — financial transactions with terms and decisions
+├── clients/           — client/account pages with current state and history
+│   └── README.md
+├── deals/             — financial transactions with terms and decisions (optional)
 │   └── README.md
 ├── meetings/          — records of specific events with transcripts
 │   └── README.md
 ├── projects/          — things being actively built (has a repo, spec, or team)
 │   └── README.md
+├── campaigns/         — active campaigns, launches, and account workstreams
+│   └── README.md
 ├── ideas/             — raw possibilities nobody is building yet
 │   └── README.md
 ├── concepts/          — mental models and frameworks you'd teach
 │   └── README.md
-├── writing/           — prose artifacts (essays, philosophy, drafts)
+├── writing/           — prose artifacts (essays, memos, drafts)
 │   └── README.md
-├── programs/          — major life workstreams (the forest, not the trees)
+├── operations/        — internal strategy, process, and operating docs
 │   └── README.md
 ├── org/               — your institution's strategy and operations
 │   └── README.md
-├── civic/             — political landscape, policy, government
-│   └── README.md
 ├── media/             — public narrative, content ops, social monitoring
-│   └── README.md
-├── personal/          — private notes, health, personal reflections
-│   └── README.md
-├── household/         — domestic operations, properties, logistics
 │   └── README.md
 ├── hiring/            — candidate pipelines and evaluations
 │   └── README.md
@@ -151,7 +149,7 @@ brain/
 └── archive/           — dead pages, historical record
 ```
 
-Every directory has a README.md resolver. Adapt directories to your life — add or remove domains as needed. Not everyone needs civic/ or hiring/ or household/. The invariant is: **one directory per knowledge domain, one file per entity, every directory has a resolver, and RESOLVER.md is the master decision tree that guarantees MECE filing.**
+Every directory has a README.md resolver. Adapt directories to your deployment — add or remove domains as needed. Not everyone needs campaigns/, hiring/, or media/. The invariant is: **one directory per knowledge domain, one file per entity, every directory has a resolver, and RESOLVER.md is the master decision tree that guarantees MECE filing.**
 
 ## Entity Identity and Deduplication
 

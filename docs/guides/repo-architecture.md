@@ -21,7 +21,7 @@ survives any agent swap. Your agent config survives any knowledge tool swap.
 | Question | If YES -> Agent Repo | If YES -> Brain Repo |
 |----------|---------------------|---------------------|
 | Would this file transfer if you switched AI agents? | YES | -- |
-| Would this file transfer if you switched to a different person? | -- | YES |
+| Would this file transfer if you switched to a different team or organization? | -- | YES |
 | Is this about how the agent behaves? | YES | -- |
 | Is this about a person, company, deal, meeting, or idea? | -- | YES |
 
@@ -31,7 +31,7 @@ survives any agent swap. Your agent config survives any knowledge tool swap.
 New file to create?
   |-- About a person, company, deal, project, meeting, idea? -> brain/
   |-- A spec, research doc, or strategic analysis? -> brain/
-  |-- An original idea or observation? -> brain/originals/
+  |-- An original insight, reusable brief, or observation? -> brain/originals/
   |-- A daily session log or heartbeat state? -> agent-repo/
   |-- A skill, config, cron, or ops file? -> agent-repo/
   |-- A task or todo? -> agent-repo/tasks/
@@ -76,7 +76,7 @@ brain/
 ├── companies/             # Company profiles
 ├── deals/                 # Deal tracking
 ├── meetings/              # Meeting transcripts + analysis
-├── originals/             # YOUR original thinking (highest value)
+├── originals/             # Original insights, hypotheses, and reusable observations
 ├── concepts/              # World concepts and frameworks
 ├── ideas/                 # Product and business ideas
 ├── media/                 # Video transcripts, books, articles
@@ -90,12 +90,12 @@ brain/
 │           └── YYYY-MM-DD.md
 ├── projects/              # Project specs and docs
 ├── writing/               # Essays, drafts, published work
-├── diligence/             # Investment diligence materials
+├── diligence/             # Diligence and research materials
 │   └── company-name/
 │       ├── index.md
 │       ├── pitch-deck.md
 │       └── .raw/          # Original PDFs/files
-└── Apple Notes/           # Imported Apple Notes archive
+└── imports/               # Imported external archives and one-time migrations
 ```
 
 ### The Hard Rule
@@ -115,8 +115,8 @@ without losing your agent setup.
 **Scale.** The brain grows large (10,000+ files). The agent repo stays small
 (< 100 files). Different backup strategies, different sync cadences.
 
-**Privacy.** The brain contains sensitive information (people, deals, personal
-notes). The agent repo contains operational config. Different access controls.
+**Privacy.** The brain contains sensitive information (people, deals, client
+history, internal notes). The agent repo contains operational config. Different access controls.
 
 **GBrain indexes the brain repo.** Run `gbrain sync --repo ~/brain/` to keep
 the search index current. The agent repo is never indexed by GBrain.
