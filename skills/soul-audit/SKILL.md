@@ -3,8 +3,8 @@ name: soul-audit
 version: 1.0.0
 description: |
   6-phase interactive interview that generates the agent's identity (SOUL.md),
-  user profile (USER.md), access control (ACCESS_POLICY.md), and operational
-  cadence (HEARTBEAT.md). Re-runnable anytime to update any section.
+  user or team profile (USER.md), access control (ACCESS_POLICY.md), and
+  operational cadence (HEARTBEAT.md). Re-runnable anytime to update any section.
 triggers:
   - "soul audit"
   - "customize agent"
@@ -28,7 +28,7 @@ ships pre-filled content. The templates in `templates/` are scaffolds, not defau
 
 This skill guarantees:
 - SOUL.md generated from user's description of agent identity, vibe, mission
-- USER.md generated from user's self-description (role, projects, key people)
+- USER.md generated from a user's or team's operating context (role, projects, key people)
 - ACCESS_POLICY.md generated with configurable access tiers
 - HEARTBEAT.md generated with operational cadence the user chooses
 - Each phase is independent and re-runnable
@@ -53,12 +53,12 @@ Ask: "What are your top 3-5 goals? What are you trying to accomplish?"
 Generate: SOUL.md mission + operating principles sections.
 
 ### Phase 4: User Profile
-Ask: "Tell me about yourself. What do you do? What are you working on? Who are the key people in your world?"
-Generate: USER.md with role, projects, key people, communication preferences.
+Ask: "Tell me about the primary operator or team. What do you do? What are you working on? Who are the key people around this deployment?"
+Generate: USER.md with role/team context, projects, key people, communication preferences.
 
 ### Phase 5: Boundaries
-Ask: "Who should have access to your brain? Are there people who should see some but not all? Anyone to keep out entirely?"
-Generate: ACCESS_POLICY.md with 4 tiers (Full/Work/Family/None).
+Ask: "Who should have access to this brain? Should access differ for operators, internal collaborators, external collaborators, or clients? Anyone to keep out entirely?"
+Generate: ACCESS_POLICY.md with 4 tiers (Full/Internal/Scoped/None).
 
 ### Phase 6: Operational Cadence
 Ask: "How often should the agent check in? Morning briefing? End of day summary? What recurring jobs do you want?"
@@ -68,8 +68,8 @@ Generate: HEARTBEAT.md with operational cadence.
 
 If the user skips soul-audit on first boot:
 - Install `templates/SOUL.md.template` as SOUL.md (minimal: "knowledge-first agent with persistent memory")
-- Install `templates/USER.md.template` as USER.md (auto-populate name/email from git config)
-- Install `templates/ACCESS_POLICY.md.template` as ACCESS_POLICY.md (owner-only access)
+- Install `templates/USER.md.template` as USER.md (auto-populate primary operator name/email from git config when available)
+- Install `templates/ACCESS_POLICY.md.template` as ACCESS_POLICY.md (deployment-owner-first access)
 - Install `templates/HEARTBEAT.md.template` as HEARTBEAT.md (default cadence)
 
 ## Output Format

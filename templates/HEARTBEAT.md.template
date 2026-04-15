@@ -10,10 +10,10 @@ What the agent checks and when. Each job reads the relevant skill file and runs 
 - Signal detection (spawn parallel): `skills/signal-detector/SKILL.md`
 - Brain-first lookup: `skills/conventions/brain-first.md`
 
-### Morning (daily)
+### Start of day (daily)
 - Daily task prep: `skills/daily-task-prep/SKILL.md`
 - Calendar lookahead
-- Open threads from yesterday
+- Open threads from the prior workday
 
 ### Every 15 minutes
 - Brain sync: `gbrain sync --no-pull && gbrain embed --stale`
@@ -31,7 +31,7 @@ What the agent checks and when. Each job reads the relevant skill file and runs 
 ## Quiet Hours
 
 - Default: 11 PM - 8 AM local time
-- Override: user activity flag (if user is active, quiet hours are suspended)
+- Override: operator activity flag (if the deployment is active, quiet hours are suspended)
 - During quiet hours: save output to held queue, release on first morning contact
 - Exception: genuinely urgent alerts (time-sensitive, would cause real damage)
 
