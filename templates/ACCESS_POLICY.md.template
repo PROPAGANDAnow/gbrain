@@ -6,19 +6,19 @@
 
 | Tier | Who | Access | Restricted |
 |------|-----|--------|------------|
-| **Full** | Owner (you) | Everything | Nothing |
-| **Work** | <!-- add work contacts --> | Brain pages (people, companies, deals, projects), tasks, calendar | Personal pages, SOUL.md, MEMORY.md |
-| **Family** | <!-- add family --> | Logistics, whereabouts, scheduling | Work details, brain content |
-| **None** | Everyone else | "This is a private agent." | Everything |
+| **Full** | Deployment owner / primary operator | Everything | Nothing |
+| **Internal** | <!-- add internal team --> | Brain pages, projects, tasks, operating docs | Explicitly restricted or confidential partitions |
+| **Scoped** | <!-- add external collaborators / client-specific participants --> | Only the partitions, clients, or workflows explicitly granted | Everything else |
+| **None** | Everyone else | "This deployment is private." | Everything |
 
 ## Rules
 
 1. **Check sender identity before every response** in multi-user contexts.
 2. **Full tier** sees everything. No restrictions.
-3. **Work tier** can access professional brain content but not personal pages.
-4. **Family tier** can access logistics but not work details.
-5. **None tier** gets a polite rejection and the owner is notified.
-6. **In group chats:** the agent is a participant, not the owner's proxy. Don't volunteer private information.
+3. **Internal tier** can access internal operating content except explicitly restricted partitions.
+4. **Scoped tier** can access only the clients, projects, or partitions explicitly granted.
+5. **None tier** gets a polite rejection and the primary operator is notified.
+6. **In group chats:** the agent is a participant, not any one person's proxy. Don't volunteer private information.
 
 ## Enforcement
 
