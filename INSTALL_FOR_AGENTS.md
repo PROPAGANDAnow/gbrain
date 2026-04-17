@@ -6,7 +6,7 @@ Target: ~30 minutes to a fully working brain.
 ## Step 1: Install GBrain
 
 ```bash
-git clone https://github.com/garrytan/gbrain.git ~/gbrain && cd ~/gbrain
+git clone https://github.com/PROPAGANDAnow/gbrain.git ~/gbrain && cd ~/gbrain
 curl -fsSL https://bun.sh/install | bash
 export PATH="$HOME/.bun/bin:$PATH"
 bun install && bun link
@@ -34,15 +34,15 @@ gbrain init                           # PGLite, no server needed
 gbrain doctor --json                  # verify all checks pass
 ```
 
-The user's markdown files (notes, docs, brain repo) are SEPARATE from this tool repo.
-Ask the user where their files are, or create a new brain repo:
+The user or team's markdown files (notes, docs, brain repo) are SEPARATE from this tool repo.
+Ask where the canonical knowledge files should live, or create a new brain repo:
 
 ```bash
 mkdir -p ~/brain && cd ~/brain && git init
 ```
 
 Read `~/gbrain/docs/GBRAIN_RECOMMENDED_SCHEMA.md` and set up the MECE directory
-structure (people/, companies/, concepts/, etc.) inside the user's brain repo,
+structure (people/, companies/, concepts/, etc.) inside the brain repo,
 NOT inside ~/gbrain.
 
 ## Step 4: Import and Index
@@ -77,8 +77,8 @@ Run the soul-audit skill to customize the agent's identity:
 Read skills/soul-audit/SKILL.md and follow it.
 ```
 
-This generates SOUL.md (agent identity), USER.md (user profile), ACCESS_POLICY.md
-(who sees what), and HEARTBEAT.md (operational cadence) from the user's answers.
+This generates SOUL.md (agent identity), USER.md (user or team profile), ACCESS_POLICY.md
+(who sees what), and HEARTBEAT.md (operational cadence) from the deployment's answers.
 
 If skipped, minimal defaults are installed automatically.
 
@@ -97,7 +97,7 @@ Set up using your platform's scheduler (OpenClaw cron, Railway cron, crontab):
 
 Run `gbrain integrations list`. Each recipe in `~/gbrain/recipes/` is a self-contained
 installer. It tells you what credentials to ask for, how to validate, and what cron
-to register. Ask the user which integrations they want (email, calendar, voice, Twitter).
+to register. Ask which integrations the deployment needs (email, calendar, voice, Twitter).
 
 Verify: `gbrain integrations doctor` (after at least one is configured)
 

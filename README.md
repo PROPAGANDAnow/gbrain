@@ -1,10 +1,10 @@
 # GBrain
 
-Your AI agent is smart but forgetful. GBrain gives it a brain.
+Your AI agent is smart but forgetful. GBrain gives it durable memory.
 
-Built by the President and CEO of Y Combinator to run his actual AI agents. The production brain powering his OpenClaw and Hermes deployments: **17,888 pages, 4,383 people, 723 companies**, 21 cron jobs running autonomously, built in 12 days. The agent ingests meetings, emails, tweets, voice calls, and original ideas while you sleep. It enriches every person and company it encounters. It fixes its own citations and consolidates memory overnight. You wake up and the brain is smarter than when you went to bed.
+GBrain is an opinionated knowledge layer for agent deployments that need more than chat history: a shared brain of pages, entities, timelines, and recurring maintenance workflows. The intended end state is a system where agents ingest meetings, emails, tweets, voice calls, and original ideas while you sleep; enrich every person and company they encounter; fix citations; and consolidate memory overnight. You wake up and the brain is smarter than when you went to bed.
 
-GBrain is those patterns, generalized. 25 skills. Install in 30 minutes. Your agent does the work. As Garry's personal agent gets smarter, so does yours.
+This repo packages those patterns as a reusable system: 25 skills, a searchable markdown brain, and deterministic tooling around retrieval, enrichment, and maintenance. Install in ~30 minutes and adapt the schema to your team, client, or operator context.
 
 > **~30 minutes to a fully working brain.** Database ready in 2 seconds (PGLite, no server). You just answer questions about API keys.
 
@@ -21,7 +21,7 @@ Paste this into your agent:
 
 ```
 Retrieve and follow the instructions at:
-https://raw.githubusercontent.com/garrytan/gbrain/master/INSTALL_FOR_AGENTS.md
+https://raw.githubusercontent.com/PROPAGANDAnow/gbrain/master/INSTALL_FOR_AGENTS.md
 ```
 
 That's it. The agent clones the repo, installs GBrain, sets up the brain, loads 25 skills, and configures recurring jobs. You answer a few questions about API keys. ~30 minutes.
@@ -29,7 +29,7 @@ That's it. The agent clones the repo, installs GBrain, sets up the brain, loads 
 ### Standalone CLI (no agent)
 
 ```bash
-git clone https://github.com/garrytan/gbrain.git && cd gbrain && bun install && bun link
+git clone https://github.com/PROPAGANDAnow/gbrain.git && cd gbrain && bun install && bun link
 gbrain init                     # local brain, ready in 2 seconds
 gbrain import ~/notes/          # index your markdown
 gbrain query "what themes show up across my notes?"
@@ -156,8 +156,8 @@ The system gets smarter on its own. Entity enrichment auto-escalates: a person m
 > "Prep me for my meeting with Jordan in 30 minutes"
 > ... pulls dossier, shared history, recent activity, open threads
 
-> "What have I said about the relationship between shame and founder performance?"
-> ... searches YOUR thinking, not the internet
+> "What have we already learned about launch timing for this client?"
+> ... searches your operating memory, not the internet
 
 ## Getting Data In
 
@@ -249,7 +249,7 @@ Keyword alone misses conceptual matches. Vector alone misses exact phrases. RRF 
 
 ## Voice
 
-Call a phone number. Your AI answers. It knows who's calling, pulls their full context from the brain, and responds like someone who actually knows your world. When the call ends, a brain page appears with the transcript, entity detection, and cross-references.
+Call a phone number. Your AI answers. It knows who's calling, pulls their full context from the brain, and responds like someone who actually knows the account, project, or relationship history. When the call ends, a brain page appears with the transcript, entity detection, and cross-references.
 
 <p align="center">
   <img src="docs/images/voice-client.png" alt="Voice client connected" width="300" />

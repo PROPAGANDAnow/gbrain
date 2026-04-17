@@ -10,9 +10,9 @@ Drop this into your agent's workspace as a skill or system prompt. Your agent wi
 
 ## What this is
 
-A personal intelligence system where your AI agent builds and maintains an interlinked wiki of everything you know about your world — people, companies, deals, projects, meetings, ideas — as structured, cross-referenced markdown files. The agent writes and maintains all of it. You direct, curate, and think.
+An operational intelligence system where your AI agent builds and maintains an interlinked wiki of what matters to a person, team, or organization — people, companies, deals, projects, meetings, ideas, decisions — as structured, cross-referenced markdown files. The agent writes and maintains all of it. Humans direct, curate, and think.
 
-This is Karpathy's LLM wiki pattern, but extended from research notes into a full operational knowledge base — one that integrates with your calendar, email, meetings, social media, and contacts to stay continuously current.
+This is Karpathy's LLM wiki pattern, extended from research notes into a full operational knowledge base — one that can integrate with calendar, email, meetings, social media, and contacts to stay continuously current.
 
 The key insight: **knowledge management has failed for 30 years because maintenance falls on humans. LLM agents change the equation — they don't get bored, don't forget to update cross-references, and can touch 50 files in one pass.** Your wiki stays alive because the cost of maintenance is near zero.
 
@@ -50,7 +50,7 @@ This is the Karpathy wiki pattern's killer feature: **the synthesis is pre-compu
 
 Every time any signal touches a person or company — meeting, email, tweet, calendar event, contact sync, conversation mention — the enrichment pipeline fires. The brain grows as a side effect of normal operations, not as a separate task you remember to do.
 
-This is what distinguishes an operational brain from Karpathy's research wiki. He describes ingesting sources you manually add. An operational brain goes further — every pipeline (meetings, email, social media, contacts) automatically triggers enrichment on every entity it touches. You never have to remember to update someone's page. The system does it because the plumbing is wired correctly.
+This is what distinguishes an operational brain from Karpathy's research wiki. An operational brain goes further — every pipeline (meetings, email, social media, contacts) automatically triggers enrichment on every entity it touches. You never have to remember to update someone's page. The system does it because the plumbing is wired correctly.
 
 ## Wiring It Into Your Agent
 
