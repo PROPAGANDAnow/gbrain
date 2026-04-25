@@ -909,8 +909,8 @@ function cmdTest(args: string[]): void {
   if (!f.name) warnings.push('Missing: name (will default to id)');
   if (!f.description) warnings.push('Missing: description');
   if (!f.version) warnings.push('Missing: version');
-  if (!['sense', 'reflex'].includes(f.category)) {
-    errors.push(`Invalid category: '${f.category}' (must be 'sense' or 'reflex')`);
+  if (!['infra', 'sense', 'reflex'].includes(f.category)) {
+    errors.push(`Invalid category: '${f.category}' (must be 'infra', 'sense', or 'reflex')`);
   }
 
   // Check secrets format
