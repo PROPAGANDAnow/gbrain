@@ -149,7 +149,7 @@ may consume more of them.
   "name": "your-openclaw",
   "version": "2026.4.20",
   "plugin_version": "gbrain-plugin-v1",
-  "description": "Your OpenClaw's personal-brain subagents"
+  "description": "Your OpenClaw's operational-brain subagents"
 }
 ```
 

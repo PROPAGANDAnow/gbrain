@@ -79,7 +79,7 @@ Source: https://raw.githubusercontent.com/PROPAGANDAnow/gbrain/master/CLAUDE.md
 
 # CLAUDE.md
 
-GBrain is a personal knowledge brain and GStack mod for agent platforms. Pluggable
+GBrain is an operational knowledge brain and GStack mod for agent platforms. Pluggable
 engines: PGLite (embedded Postgres via WASM, zero-config default) or Postgres + pgvector
 + hybrid search in a managed Supabase instance. `gbrain init` defaults to PGLite;
 suggests Supabase for 1000+ files. GStack teaches agents how to code. GBrain teaches
@@ -2163,7 +2163,7 @@ Note: The original SQLite engine plan (`docs/SQLITE_ENGINE.md`) was superseded b
 Source: https://raw.githubusercontent.com/PROPAGANDAnow/gbrain/master/docs/GBRAIN_RECOMMENDED_SCHEMA.md
 
 <!-- schema-version: 0.5.0 -->
-<!-- source: https://raw.githubusercontent.com/garrytan/gbrain/master/docs/GBRAIN_RECOMMENDED_SCHEMA.md -->
+<!-- source: https://raw.githubusercontent.com/PROPAGANDAnow/gbrain/master/docs/GBRAIN_RECOMMENDED_SCHEMA.md -->
 # Brain: The LLM-Maintained Knowledge Base
 
 A system prompt for any AI agent that wants to build and maintain a personal knowledge base. This describes the pattern, the architecture, and the operational discipline that makes it work.

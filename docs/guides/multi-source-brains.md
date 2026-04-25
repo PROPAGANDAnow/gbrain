@@ -31,36 +31,37 @@ gbrain sync --source gstack
 Result: wiki pages and gstack plans are separate (different source_ids,
 different slug namespaces) but share the search surface.
 
-### 2. Purpose-separated brains (yc-media + garrys-list)
+### 2. Purpose-separated brains (client-research + internal-writing)
 
 You run two completely different content pipelines on the same backend.
-YC Media covers portfolio news and founder profiles. Garry's List is
-personal writing. You explicitly DON'T want them mixed in search — YC
-portfolio content leaking into essay searches is a bug, not a feature.
+Client research covers accounts, markets, and account-specific notes.
+Internal writing covers essays, memos, and internal drafts. You explicitly
+DON'T want them mixed in search — client-specific material leaking into
+general writing searches is a bug, not a feature.
 
 ```bash
 # Two sources, both isolated (federated=false)
-gbrain sources add yc-media --path ~/yc-media --no-federated
-gbrain sources add garrys-list --path ~/writing --no-federated
+gbrain sources add client-research --path ~/client-research --no-federated
+gbrain sources add internal-writing --path ~/writing --no-federated
 
 # Pin each checkout directory
-(cd ~/yc-media && gbrain sources attach yc-media)
-(cd ~/writing && gbrain sources attach garrys-list)
+(cd ~/client-research && gbrain sources attach client-research)
+(cd ~/writing && gbrain sources attach internal-writing)
 
 # Sync each independently
-gbrain sync --source yc-media
-gbrain sync --source garrys-list
+gbrain sync --source client-research
+gbrain sync --source internal-writing
 ```
 
 Result: searching from neither directory returns the `default` source
-(your main brain). Searching from inside `~/yc-media` returns only yc-
-media hits. Searching from inside `~/writing` returns only garrys-list.
-Federation is opt-in, not leaked.
+(your main brain). Searching from inside `~/client-research` returns only
+client-research hits. Searching from inside `~/writing` returns only
+internal-writing. Federation is opt-in, not leaked.
 
 To search across them explicitly on demand:
 
 ```bash
-gbrain search "tech layoffs" --source yc-media,garrys-list
+gbrain search "tech layoffs" --source client-research,internal-writing
 ```
 
 ### 3. Mixed (wiki federated + sessions isolated)
