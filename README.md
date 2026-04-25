@@ -1,10 +1,14 @@
-# GBrain
+# PropBrain
 
-Your AI agent is smart but forgetful. GBrain gives it durable memory.
+PropBrain is PROPAGANDAnow's deployment-oriented fork/profile of GBrain.
 
-GBrain is an opinionated knowledge layer for agent deployments that need more than chat history: a shared brain of pages, entities, timelines, and recurring maintenance workflows. The intended end state is a system where agents ingest meetings, emails, tweets, voice calls, and original ideas while you sleep; enrich every person and company they encounter; fix citations; and consolidate memory overnight. You wake up and the brain is smarter than when you went to bed.
+Your AI agent is smart but forgetful. PropBrain gives it durable memory.
+
+PropBrain is an opinionated knowledge layer for agent deployments that need more than chat history: a shared brain of pages, entities, timelines, and recurring maintenance workflows. The intended end state is a system where agents ingest meetings, emails, tweets, voice calls, and original ideas while you sleep; enrich every person and company they encounter; fix citations; and consolidate memory overnight. You wake up and the brain is smarter than when you went to bed.
 
 This repo packages those patterns as a reusable system: 25 skills, a searchable markdown brain, and deterministic tooling around retrieval, enrichment, and maintenance. Install in ~30 minutes and adapt the schema to your team, client, or operator context.
+
+**How PropBrain differs from upstream GBrain:** this fork keeps the `gbrain` code/CLI/package naming for compatibility, but changes the default framing toward team, client, and operational deployments rather than a primarily personal brain. Read **[docs/PROPBRAIN.md](docs/PROPBRAIN.md)** before making architectural changes or opening a PR.
 
 > **~30 minutes to a fully working brain.** Database ready in 2 seconds (PGLite, no server). You just answer questions about API keys.
 
@@ -360,6 +364,7 @@ The skills in this repo are those patterns, generalized. What took 11 days to bu
 - [GBRAIN_VERIFY.md](docs/GBRAIN_VERIFY.md) ... Installation verification
 
 **For humans:**
+- [PROPBRAIN.md](docs/PROPBRAIN.md) ... Why this fork exists, how it differs from upstream GBrain, and what PRs should optimize for
 - [GBRAIN_RECOMMENDED_SCHEMA.md](docs/GBRAIN_RECOMMENDED_SCHEMA.md) ... Brain repo directory structure
 - [Thin Harness, Fat Skills](docs/ethos/THIN_HARNESS_FAT_SKILLS.md) ... Architecture philosophy
 - [ENGINES.md](docs/ENGINES.md) ... Pluggable engine interface
@@ -370,7 +375,7 @@ The skills in this repo are those patterns, generalized. What took 11 days to bu
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). Run `bun test` for unit tests. E2E tests: spin up Postgres with pgvector, run `bun run test:e2e`, tear down.
+See [CONTRIBUTING.md](CONTRIBUTING.md). **Before opening a PR, read [docs/PROPBRAIN.md](docs/PROPBRAIN.md)** for the fork's objective, non-goals, and contribution guardrails. Run `bun test` for unit tests. E2E tests: spin up Postgres with pgvector, run `bun run test:e2e`, tear down.
 
 PRs welcome for: new enrichment APIs, performance optimizations, additional engine backends, new skills following the conformance standard in `skills/skill-creator/SKILL.md`.
 

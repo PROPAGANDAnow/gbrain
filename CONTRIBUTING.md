@@ -1,9 +1,11 @@
 # Contributing to GBrain
 
+> This repo is documented publicly as **PropBrain**, while the implementation still uses `gbrain` for compatibility. Before proposing architectural or workflow changes, read [docs/PROPBRAIN.md](docs/PROPBRAIN.md).
+
 ## Setup
 
 ```bash
-git clone https://github.com/garrytan/gbrain.git
+git clone https://github.com/PROPAGANDAnow/gbrain.git
 cd gbrain
 bun install
 bun test
