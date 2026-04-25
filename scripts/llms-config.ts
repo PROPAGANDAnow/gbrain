@@ -28,11 +28,11 @@ export type DocSection = {
 export const PROJECT = {
   name: "GBrain",
   summary:
-    "GBrain is a personal knowledge brain and GStack mod for agent platforms. Pluggable engines (PGLite default, Postgres+pgvector for scale), contract-first operations, 26 fat-markdown skills. Teaches agents brain ops, ingestion, enrichment, scheduling, identity, and access control.",
-  repoUrl: "https://github.com/garrytan/gbrain",
+    "GBrain is an operational knowledge brain and GStack mod for agent deployments. Pluggable engines (PGLite default, Postgres+pgvector for scale), contract-first operations, and 29 fat-markdown skills. Teaches agents brain ops, ingestion, enrichment, scheduling, identity, and access control.",
+  repoUrl: "https://github.com/PROPAGANDAnow/gbrain",
   rawBaseUrl:
     process.env.LLMS_REPO_BASE ??
-    "https://raw.githubusercontent.com/garrytan/gbrain/master",
+    "https://raw.githubusercontent.com/PROPAGANDAnow/gbrain/master",
 };
 
 export const SECTIONS: DocSection[] = [

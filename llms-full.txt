@@ -1,15 +1,15 @@
 # GBrain — Full Context
 
-> GBrain is a personal knowledge brain and GStack mod for agent platforms. Pluggable engines (PGLite default, Postgres+pgvector for scale), contract-first operations, 26 fat-markdown skills. Teaches agents brain ops, ingestion, enrichment, scheduling, identity, and access control.
+> GBrain is an operational knowledge brain and GStack mod for agent deployments. Pluggable engines (PGLite default, Postgres+pgvector for scale), contract-first operations, and 29 fat-markdown skills. Teaches agents brain ops, ingestion, enrichment, scheduling, identity, and access control.
 
 This file concatenates core GBrain documentation for single-fetch ingestion.
-For the link-only index, see `llms.txt`. Source of truth: https://github.com/garrytan/gbrain.
+For the link-only index, see `llms.txt`. Source of truth: https://github.com/PROPAGANDAnow/gbrain.
 
 # Core entry points
 
 ## AGENTS.md
 
-Source: https://raw.githubusercontent.com/garrytan/gbrain/master/AGENTS.md
+Source: https://raw.githubusercontent.com/PROPAGANDAnow/gbrain/master/AGENTS.md
 
 # Agents working on GBrain
 
@@ -19,7 +19,7 @@ start here.
 
 ## Install (5 min)
 
-1. Clone: `git clone https://github.com/garrytan/gbrain ~/gbrain && cd ~/gbrain`
+1. Clone: `git clone https://github.com/PROPAGANDAnow/gbrain ~/gbrain && cd ~/gbrain`
 2. Install: `bun install`
 3. Init the brain: `gbrain init` (defaults to PGLite, zero-config). For 1000+ files or
    multi-machine sync, init suggests Postgres + pgvector via Supabase.
@@ -75,7 +75,7 @@ publishing: `LLMS_REPO_BASE=https://raw.githubusercontent.com/your-org/your-fork
 
 ## CLAUDE.md
 
-Source: https://raw.githubusercontent.com/garrytan/gbrain/master/CLAUDE.md
+Source: https://raw.githubusercontent.com/PROPAGANDAnow/gbrain/master/CLAUDE.md
 
 # CLAUDE.md
 
@@ -915,7 +915,7 @@ Key routing rules:
 
 ## INSTALL_FOR_AGENTS.md
 
-Source: https://raw.githubusercontent.com/garrytan/gbrain/master/INSTALL_FOR_AGENTS.md
+Source: https://raw.githubusercontent.com/PROPAGANDAnow/gbrain/master/INSTALL_FOR_AGENTS.md
 
 # GBrain Installation Guide for AI Agents
 
@@ -929,14 +929,14 @@ protocol (install, read order, trust boundary, common tasks). Claude Code reads
 `CLAUDE.md` automatically and can skip ahead.
 
 If you fetched this file by URL without cloning yet, the companion files live at:
-- `https://raw.githubusercontent.com/garrytan/gbrain/master/AGENTS.md` — start here
-- `https://raw.githubusercontent.com/garrytan/gbrain/master/llms.txt` — full doc map
-- `https://raw.githubusercontent.com/garrytan/gbrain/master/llms-full.txt` — same map, inlined
+- `https://raw.githubusercontent.com/PROPAGANDAnow/gbrain/master/AGENTS.md` — start here
+- `https://raw.githubusercontent.com/PROPAGANDAnow/gbrain/master/llms.txt` — full doc map
+- `https://raw.githubusercontent.com/PROPAGANDAnow/gbrain/master/llms-full.txt` — same map, inlined
 
 ## Step 1: Install GBrain
 
 ```bash
-git clone https://github.com/garrytan/gbrain.git ~/gbrain && cd ~/gbrain
+git clone https://github.com/PROPAGANDAnow/gbrain.git ~/gbrain && cd ~/gbrain
 curl -fsSL https://bun.sh/install | bash
 export PATH="$HOME/.bun/bin:$PATH"
 bun install && bun link
@@ -945,7 +945,7 @@ bun install && bun link
 Verify: `gbrain --version` should print a version number. If `gbrain` is not found,
 restart the shell or add the PATH export to the shell profile.
 
-> **Do NOT use `bun install -g github:garrytan/gbrain`.** Bun blocks the top-level
+> **Do NOT use `bun install -g github:PROPAGANDAnow/gbrain` (or any `github:...` global install).** Bun blocks the top-level
 > postinstall hook on global installs, so schema migrations never run and the CLI
 > aborts with `Aborted()` when it opens PGLite. Use the `git clone + bun link` path
 > above. Tracking issue: [#218](https://github.com/garrytan/gbrain/issues/218).
@@ -969,15 +969,15 @@ gbrain init                           # PGLite, no server needed
 gbrain doctor --json                  # verify all checks pass
 ```
 
-The user's markdown files (notes, docs, brain repo) are SEPARATE from this tool repo.
-Ask the user where their files are, or create a new brain repo:
+The user or team's markdown files (notes, docs, brain repo) are SEPARATE from this tool repo.
+Ask where the canonical knowledge files should live, or create a new brain repo:
 
 ```bash
 mkdir -p ~/brain && cd ~/brain && git init
 ```
 
 Read `~/gbrain/docs/GBRAIN_RECOMMENDED_SCHEMA.md` and set up the MECE directory
-structure (people/, companies/, concepts/, etc.) inside the user's brain repo,
+structure (people/, companies/, concepts/, etc.) inside the brain repo,
 NOT inside ~/gbrain.
 
 ## Step 4: Import and Index
@@ -1036,8 +1036,8 @@ Run the soul-audit skill to customize the agent's identity:
 Read skills/soul-audit/SKILL.md and follow it.
 ```
 
-This generates SOUL.md (agent identity), USER.md (user profile), ACCESS_POLICY.md
-(who sees what), and HEARTBEAT.md (operational cadence) from the user's answers.
+This generates SOUL.md (agent identity), USER.md (user or team profile), ACCESS_POLICY.md
+(who sees what), and HEARTBEAT.md (operational cadence) from the deployment's answers.
 
 If skipped, minimal defaults are installed automatically.
 
@@ -1056,7 +1056,7 @@ Set up using your platform's scheduler (OpenClaw cron, Railway cron, crontab):
 
 Run `gbrain integrations list`. Each recipe in `~/gbrain/recipes/` is a self-contained
 installer. It tells you what credentials to ask for, how to validate, and what cron
-to register. Ask the user which integrations they want (email, calendar, voice, Twitter).
+to register. Ask which integrations the deployment needs (email, calendar, voice, Twitter).
 
 Verify: `gbrain integrations doctor` (after at least one is configured)
 
@@ -1092,7 +1092,7 @@ columns. PGLite brains no-op. If wiki-style imports were truncated by the old
 
 ## skills/RESOLVER.md
 
-Source: https://raw.githubusercontent.com/garrytan/gbrain/master/skills/RESOLVER.md
+Source: https://raw.githubusercontent.com/PROPAGANDAnow/gbrain/master/skills/RESOLVER.md
 
 # GBrain Skill Resolver
 
@@ -1201,17 +1201,17 @@ These apply to ALL brain-writing skills:
 
 ## README.md
 
-Source: https://raw.githubusercontent.com/garrytan/gbrain/master/README.md
+Source: https://raw.githubusercontent.com/PROPAGANDAnow/gbrain/master/README.md
 
 # GBrain
 
-Your AI agent is smart but forgetful. GBrain gives it a brain.
+Your AI agent is smart but forgetful. GBrain gives it durable memory.
 
-Built by the President and CEO of Y Combinator to run his actual AI agents. The production brain powering his OpenClaw and Hermes deployments: **17,888 pages, 4,383 people, 723 companies**, 21 cron jobs running autonomously, built in 12 days. The agent ingests meetings, emails, tweets, voice calls, and original ideas while you sleep. It enriches every person and company it encounters. It fixes its own citations and consolidates memory overnight. You wake up and the brain is smarter than when you went to bed.
+GBrain is an opinionated knowledge layer for agent deployments that need more than chat history: a shared brain of pages, entities, timelines, and recurring maintenance workflows. The intended end state is a system where agents ingest meetings, emails, tweets, voice calls, and original ideas while you sleep; enrich every person and company they encounter; fix citations; and consolidate memory overnight. You wake up and the brain is smarter than when you went to bed.
 
 The brain wires itself. Every page write extracts entity references and creates typed links (`attended`, `works_at`, `invested_in`, `founded`, `advises`) with zero LLM calls. Hybrid search. Self-wiring knowledge graph. Structured timeline. Backlink-boosted ranking. Ask "who works at Acme AI?" or "what did Bob invest in this quarter?" and get answers vector search alone can't reach. Benchmarked side-by-side against the category: gbrain lands **P@5 49.1%, R@5 97.9%** on a 240-page Opus-generated rich-prose corpus, beating its own graph-disabled variant by **+31.4 points P@5** and ripgrep-BM25 + vector-only RAG by a similar margin. The graph layer plus v0.12 extract quality together carry the gap. Full BrainBench scorecards + corpus live in the sibling [gbrain-evals](https://github.com/garrytan/gbrain-evals) repo.
 
-GBrain is those patterns, generalized. 29 skills. Install in 30 minutes. Your agent does the work. As Garry's personal agent gets smarter, so does yours.
+GBrain packages those patterns as a reusable system: 29 skills, a searchable markdown brain, and deterministic tooling around retrieval, enrichment, and maintenance. Install in ~30 minutes and adapt the schema to your team, client, or operator context.
 
 > **~30 minutes to a fully working brain.** Database ready in 2 seconds (PGLite, no server). You just answer questions about API keys.
 
@@ -1230,26 +1230,26 @@ Paste this into your agent:
 
 ```
 Retrieve and follow the instructions at:
-https://raw.githubusercontent.com/garrytan/gbrain/master/INSTALL_FOR_AGENTS.md
+https://raw.githubusercontent.com/PROPAGANDAnow/gbrain/master/INSTALL_FOR_AGENTS.md
 ```
 
 That's it. The agent clones the repo, installs GBrain, sets up the brain, loads 29 skills, and configures recurring jobs. You answer a few questions about API keys. ~30 minutes.
 
-If your agent doesn't auto-read `AGENTS.md`, point it at that file first:
-`https://raw.githubusercontent.com/garrytan/gbrain/master/AGENTS.md` is the non-Claude
+If your agent doesn't auto-read `AGENTS.md`, point it at this fork's copy first:
+`https://raw.githubusercontent.com/PROPAGANDAnow/gbrain/master/AGENTS.md` is the non-Claude
 agent operating protocol (install, read order, trust boundary, common tasks). For
 the full doc map, use `llms.txt` at the same URL root.
 
 ### Standalone CLI (no agent)
 
 ```bash
-git clone https://github.com/garrytan/gbrain.git && cd gbrain && bun install && bun link
+git clone https://github.com/PROPAGANDAnow/gbrain.git && cd gbrain && bun install && bun link
 gbrain init                     # local brain, ready in 2 seconds
 gbrain import ~/notes/          # index your markdown
 gbrain query "what themes show up across my notes?"
 ```
 
-**Do NOT use `bun install -g github:garrytan/gbrain`.** Bun blocks the top-level
+**Do NOT use `bun install -g github:PROPAGANDAnow/gbrain` (or any `github:...` global install).** Bun blocks the top-level
 postinstall hook on global installs, so schema migrations never run and the CLI
 aborts with `Aborted()` the first time it opens PGLite. Use `git clone + bun install
 && bun link` as shown above. See [#218](https://github.com/garrytan/gbrain/issues/218).
@@ -1363,7 +1363,7 @@ GBrain ships 29 skills organized by `skills/RESOLVER.md` (or your OpenClaw's `AG
 
 | Skill | What it does |
 |-------|-------------|
-| **soul-audit** | 6-phase interview generating SOUL.md (agent identity), USER.md (user profile), ACCESS_POLICY.md (4-tier privacy), HEARTBEAT.md (operational cadence). |
+| **soul-audit** | 6-phase interview generating SOUL.md (agent identity), USER.md (user or team profile), ACCESS_POLICY.md (4-tier privacy), HEARTBEAT.md (operational cadence). |
 | **setup** | Auto-provision PGLite or Supabase. First import. GStack detection. |
 | **migrate** | Universal migration from Obsidian, Notion, Logseq, markdown, CSV, JSON, Roam. |
 | **briefing** | Daily briefing with meeting context, active deals, and citation tracking. |
@@ -1396,8 +1396,8 @@ The system gets smarter on its own. Entity enrichment auto-escalates: a person m
 > "Prep me for my meeting with Jordan in 30 minutes"
 > ... pulls dossier, shared history, recent activity, open threads
 
-> "What have I said about the relationship between shame and founder performance?"
-> ... searches YOUR thinking, not the internet
+> "What have we already learned about launch timing for this client?"
+> ... searches your operating memory, not the internet
 
 ## Minions: your sub-agents won't drop work anymore
 
@@ -1405,7 +1405,7 @@ A durable, Postgres-native job queue built into the brain. Every long-running ag
 
 ### The production numbers that matter
 
-Here's my personal OpenClaw deployment: one Render container. Supabase Postgres holding a 45,000-page brain. 19 cron jobs firing on schedule. Real gateway load from real daily work. The task: pull a month of my social posts from an external API and ingest them end-to-end into the brain as a structured page.
+Here's a production OpenClaw deployment: one Render container. Supabase Postgres holding a 45,000-page brain. 19 cron jobs firing on schedule. Real gateway load from real daily work. The task: pull a month of social posts from an external API and ingest them end-to-end into the brain as a structured page.
 
 |              | Minions   | `sessions_spawn`               |
 |---           |---        |---                             |
@@ -1752,7 +1752,7 @@ concert, all measured.**
 
 ## Voice
 
-Call a phone number. Your AI answers. It knows who's calling, pulls their full context from the brain, and responds like someone who actually knows your world. When the call ends, a brain page appears with the transcript, entity detection, and cross-references.
+Call a phone number. Your AI answers. It knows who's calling, pulls their full context from the brain, and responds like someone who actually knows the account, project, or relationship history. When the call ends, a brain page appears with the transcript, entity detection, and cross-references.
 
 <p align="center">
   <img src="docs/images/voice-client.png" alt="Voice client connected" width="300" />
@@ -1919,7 +1919,7 @@ MIT
 
 ## docs/ENGINES.md
 
-Source: https://raw.githubusercontent.com/garrytan/gbrain/master/docs/ENGINES.md
+Source: https://raw.githubusercontent.com/PROPAGANDAnow/gbrain/master/docs/ENGINES.md
 
 # Pluggable Engine Architecture
 
@@ -2160,7 +2160,7 @@ Note: The original SQLite engine plan (`docs/SQLITE_ENGINE.md`) was superseded b
 
 ## docs/GBRAIN_RECOMMENDED_SCHEMA.md
 
-Source: https://raw.githubusercontent.com/garrytan/gbrain/master/docs/GBRAIN_RECOMMENDED_SCHEMA.md
+Source: https://raw.githubusercontent.com/PROPAGANDAnow/gbrain/master/docs/GBRAIN_RECOMMENDED_SCHEMA.md
 
 <!-- schema-version: 0.5.0 -->
 <!-- source: https://raw.githubusercontent.com/garrytan/gbrain/master/docs/GBRAIN_RECOMMENDED_SCHEMA.md -->
@@ -2174,9 +2174,9 @@ Drop this into your agent's workspace as a skill or system prompt. Your agent wi
 
 ## What this is
 
-A personal intelligence system where your AI agent builds and maintains an interlinked wiki of everything you know about your world — people, companies, deals, projects, meetings, ideas — as structured, cross-referenced markdown files. The agent writes and maintains all of it. You direct, curate, and think.
+An operational intelligence system where your AI agent builds and maintains an interlinked wiki of what matters to a person, team, or organization — people, companies, deals, projects, meetings, ideas, decisions — as structured, cross-referenced markdown files. The agent writes and maintains all of it. Humans direct, curate, and think.
 
-This is Karpathy's LLM wiki pattern, but extended from research notes into a full operational knowledge base — one that integrates with your calendar, email, meetings, social media, and contacts to stay continuously current.
+This is Karpathy's LLM wiki pattern, extended from research notes into a full operational knowledge base — one that can integrate with calendar, email, meetings, social media, and contacts to stay continuously current.
 
 The key insight: **knowledge management has failed for 30 years because maintenance falls on humans. LLM agents change the equation — they don't get bored, don't forget to update cross-references, and can touch 50 files in one pass.** Your wiki stays alive because the cost of maintenance is near zero.
 
@@ -2214,7 +2214,7 @@ This is the Karpathy wiki pattern's killer feature: **the synthesis is pre-compu
 
 Every time any signal touches a person or company — meeting, email, tweet, calendar event, contact sync, conversation mention — the enrichment pipeline fires. The brain grows as a side effect of normal operations, not as a separate task you remember to do.
 
-This is what distinguishes an operational brain from Karpathy's research wiki. He describes ingesting sources you manually add. An operational brain goes further — every pipeline (meetings, email, social media, contacts) automatically triggers enrichment on every entity it touches. You never have to remember to update someone's page. The system does it because the plumbing is wired correctly.
+This is what distinguishes an operational brain from Karpathy's research wiki. An operational brain goes further — every pipeline (meetings, email, social media, contacts) automatically triggers enrichment on every entity it touches. You never have to remember to update someone's page. The system does it because the plumbing is wired correctly.
 
 ## Wiring It Into Your Agent
 
@@ -2282,29 +2282,27 @@ brain/
 ├── companies/         — one page per organization
 │   ├── README.md
 │   └── .raw/
-├── deals/             — financial transactions with terms and decisions
+├── clients/           — client/account pages with current state and history
+│   └── README.md
+├── deals/             — financial transactions with terms and decisions (optional)
 │   └── README.md
 ├── meetings/          — records of specific events with transcripts
 │   └── README.md
 ├── projects/          — things being actively built (has a repo, spec, or team)
 │   └── README.md
+├── campaigns/         — active campaigns, launches, and account workstreams
+│   └── README.md
 ├── ideas/             — raw possibilities nobody is building yet
 │   └── README.md
 ├── concepts/          — mental models and frameworks you'd teach
 │   └── README.md
-├── writing/           — prose artifacts (essays, philosophy, drafts)
+├── writing/           — prose artifacts (essays, memos, drafts)
 │   └── README.md
-├── programs/          — major life workstreams (the forest, not the trees)
+├── operations/        — internal strategy, process, and operating docs
 │   └── README.md
 ├── org/               — your institution's strategy and operations
 │   └── README.md
-├── civic/             — political landscape, policy, government
-│   └── README.md
 ├── media/             — public narrative, content ops, social monitoring
-│   └── README.md
-├── personal/          — private notes, health, personal reflections
-│   └── README.md
-├── household/         — domestic operations, properties, logistics
 │   └── README.md
 ├── hiring/            — candidate pipelines and evaluations
 │   └── README.md
@@ -2315,7 +2313,7 @@ brain/
 └── archive/           — dead pages, historical record
 ```
 
-Every directory has a README.md resolver. Adapt directories to your life — add or remove domains as needed. Not everyone needs civic/ or hiring/ or household/. The invariant is: **one directory per knowledge domain, one file per entity, every directory has a resolver, and RESOLVER.md is the master decision tree that guarantees MECE filing.**
+Every directory has a README.md resolver. Adapt directories to your deployment — add or remove domains as needed. Not everyone needs campaigns/, hiring/, or media/. The invariant is: **one directory per knowledge domain, one file per entity, every directory has a resolver, and RESOLVER.md is the master decision tree that guarantees MECE filing.**
 
 ## Entity Identity and Deduplication
 
@@ -3180,7 +3178,7 @@ The human's job: curate sources, direct analysis, ask good questions, and think 
 
 ## docs/guides/live-sync.md
 
-Source: https://raw.githubusercontent.com/garrytan/gbrain/master/docs/guides/live-sync.md
+Source: https://raw.githubusercontent.com/PROPAGANDAnow/gbrain/master/docs/guides/live-sync.md
 
 # Live Sync: Keep the Index Current
 
@@ -3325,7 +3323,7 @@ hashes match. If both a cron and `--watch` fire simultaneously, no conflict.
 
 ## docs/guides/cron-schedule.md
 
-Source: https://raw.githubusercontent.com/garrytan/gbrain/master/docs/guides/cron-schedule.md
+Source: https://raw.githubusercontent.com/PROPAGANDAnow/gbrain/master/docs/guides/cron-schedule.md
 
 # Reference Cron Schedule
 
@@ -3525,7 +3523,7 @@ echo "Dream cycle complete at $(date)"
 
 ## docs/guides/minions-deployment.md
 
-Source: https://raw.githubusercontent.com/garrytan/gbrain/master/docs/guides/minions-deployment.md
+Source: https://raw.githubusercontent.com/PROPAGANDAnow/gbrain/master/docs/guides/minions-deployment.md
 
 # Minions Worker Deployment Guide
 
@@ -3864,7 +3862,7 @@ sudo systemctl daemon-reload
 
 ## docs/guides/quiet-hours.md
 
-Source: https://raw.githubusercontent.com/garrytan/gbrain/master/docs/guides/quiet-hours.md
+Source: https://raw.githubusercontent.com/PROPAGANDAnow/gbrain/master/docs/guides/quiet-hours.md
 
 # Quiet Hours and Timezone-Aware Delivery
 
@@ -4036,7 +4034,7 @@ Set `enabled: false` to disable quiet hours entirely (e.g., for 24/7 monitoring)
 
 ## docs/mcp/DEPLOY.md
 
-Source: https://raw.githubusercontent.com/garrytan/gbrain/master/docs/mcp/DEPLOY.md
+Source: https://raw.githubusercontent.com/PROPAGANDAnow/gbrain/master/docs/mcp/DEPLOY.md
 
 # Deploy GBrain Remote MCP Server
 
@@ -4167,7 +4165,7 @@ for a reference implementation.
 
 ## docs/GBRAIN_VERIFY.md
 
-Source: https://raw.githubusercontent.com/garrytan/gbrain/master/docs/GBRAIN_VERIFY.md
+Source: https://raw.githubusercontent.com/PROPAGANDAnow/gbrain/master/docs/GBRAIN_VERIFY.md
 
 # GBrain Installation Verification Runbook
 
@@ -4467,7 +4465,7 @@ end-to-end sync test (4c), push a real change and verify it appears in search.
 
 ## docs/guides/minions-fix.md
 
-Source: https://raw.githubusercontent.com/garrytan/gbrain/master/docs/guides/minions-fix.md
+Source: https://raw.githubusercontent.com/PROPAGANDAnow/gbrain/master/docs/guides/minions-fix.md
 
 # Minions fix — repairing a half-migrated install
 
@@ -4633,7 +4631,7 @@ Each phase is idempotent. Re-running is safe. Common failure modes:
 
 ## docs/integrations/reliability-repair.md
 
-Source: https://raw.githubusercontent.com/garrytan/gbrain/master/docs/integrations/reliability-repair.md
+Source: https://raw.githubusercontent.com/PROPAGANDAnow/gbrain/master/docs/integrations/reliability-repair.md
 
 # Reliability repair (v0.12.2)
 
@@ -4708,7 +4706,7 @@ should match your expectations for the corpus.
 
 ## docs/UPGRADING_DOWNSTREAM_AGENTS.md
 
-Source: https://raw.githubusercontent.com/garrytan/gbrain/master/docs/UPGRADING_DOWNSTREAM_AGENTS.md
+Source: https://raw.githubusercontent.com/PROPAGANDAnow/gbrain/master/docs/UPGRADING_DOWNSTREAM_AGENTS.md
 
 # Upgrading Downstream Agents
 

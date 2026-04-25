@@ -30,8 +30,8 @@ https://raw.githubusercontent.com/PROPAGANDAnow/gbrain/master/INSTALL_FOR_AGENTS
 
 That's it. The agent clones the repo, installs GBrain, sets up the brain, loads 29 skills, and configures recurring jobs. You answer a few questions about API keys. ~30 minutes.
 
-If your agent doesn't auto-read `AGENTS.md`, point it at that file first:
-`https://raw.githubusercontent.com/garrytan/gbrain/master/AGENTS.md` is the non-Claude
+If your agent doesn't auto-read `AGENTS.md`, point it at this fork's copy first:
+`https://raw.githubusercontent.com/PROPAGANDAnow/gbrain/master/AGENTS.md` is the non-Claude
 agent operating protocol (install, read order, trust boundary, common tasks). For
 the full doc map, use `llms.txt` at the same URL root.
 
@@ -44,7 +44,7 @@ gbrain import ~/notes/          # index your markdown
 gbrain query "what themes show up across my notes?"
 ```
 
-**Do NOT use `bun install -g github:garrytan/gbrain`.** Bun blocks the top-level
+**Do NOT use `bun install -g github:PROPAGANDAnow/gbrain` (or any `github:...` global install).** Bun blocks the top-level
 postinstall hook on global installs, so schema migrations never run and the CLI
 aborts with `Aborted()` the first time it opens PGLite. Use `git clone + bun install
 && bun link` as shown above. See [#218](https://github.com/garrytan/gbrain/issues/218).
@@ -158,7 +158,7 @@ GBrain ships 29 skills organized by `skills/RESOLVER.md` (or your OpenClaw's `AG
 
 | Skill | What it does |
 |-------|-------------|
-| **soul-audit** | 6-phase interview generating SOUL.md (agent identity), USER.md (user profile), ACCESS_POLICY.md (4-tier privacy), HEARTBEAT.md (operational cadence). |
+| **soul-audit** | 6-phase interview generating SOUL.md (agent identity), USER.md (user or team profile), ACCESS_POLICY.md (4-tier privacy), HEARTBEAT.md (operational cadence). |
 | **setup** | Auto-provision PGLite or Supabase. First import. GStack detection. |
 | **migrate** | Universal migration from Obsidian, Notion, Logseq, markdown, CSV, JSON, Roam. |
 | **briefing** | Daily briefing with meeting context, active deals, and citation tracking. |
@@ -200,7 +200,7 @@ A durable, Postgres-native job queue built into the brain. Every long-running ag
 
 ### The production numbers that matter
 
-Here's my personal OpenClaw deployment: one Render container. Supabase Postgres holding a 45,000-page brain. 19 cron jobs firing on schedule. Real gateway load from real daily work. The task: pull a month of my social posts from an external API and ingest them end-to-end into the brain as a structured page.
+Here's a production OpenClaw deployment: one Render container. Supabase Postgres holding a 45,000-page brain. 19 cron jobs firing on schedule. Real gateway load from real daily work. The task: pull a month of social posts from an external API and ingest them end-to-end into the brain as a structured page.
 
 |              | Minions   | `sessions_spawn`               |
 |---           |---        |---                             |
