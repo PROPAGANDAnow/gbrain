@@ -189,6 +189,24 @@ describe('CLI integration', () => {
 
 // --- Recipe file validation ---
 
+describe('honcho-self-hosted-memory recipe', () => {
+  test('recipe file parses correctly', () => {
+    const { readFileSync } = require('fs');
+    const content = readFileSync(
+      new URL('../recipes/honcho-self-hosted-memory.md', import.meta.url),
+      'utf-8'
+    );
+    const recipe = parseRecipe(content, 'honcho-self-hosted-memory.md');
+    expect(recipe).not.toBeNull();
+    expect(recipe!.frontmatter.id).toBe('honcho-self-hosted-memory');
+    expect(recipe!.frontmatter.category).toBe('infra');
+    expect(recipe!.frontmatter.secrets.length).toBeGreaterThan(0);
+    expect(recipe!.frontmatter.health_checks.length).toBeGreaterThan(0);
+    expect(recipe!.body).toContain('~/.honcho/config.json');
+    expect(recipe!.body).toContain('/openapi.json');
+  });
+});
+
 describe('twilio-voice-brain recipe', () => {
   test('recipe file parses correctly', () => {
     const { readFileSync } = require('fs');

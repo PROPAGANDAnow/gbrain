@@ -35,6 +35,7 @@ These are integration recipes your agent can set up for you. Run
 | [x-to-brain](../../recipes/x-to-brain.md) | Sense | — | Twitter timeline, mentions, keyword monitoring with deletion detection | 15 min |
 | [calendar-to-brain](../../recipes/calendar-to-brain.md) | Sense | credential-gateway | Google Calendar events become searchable daily brain pages | 20 min |
 | [meeting-sync](../../recipes/meeting-sync.md) | Sense | — | Circleback meeting transcripts auto-import with attendee propagation | 15 min |
+| [honcho-self-hosted-memory](../../recipes/honcho-self-hosted-memory.md) | Infra | — | Point Hermes at your own Honcho deployment for private cross-session memory | 20 min |
 
 ### Manual Integration Guides
 
