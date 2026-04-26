@@ -137,7 +137,7 @@ Set up using your platform's scheduler (OpenClaw cron, Railway cron, crontab):
 
 Run `gbrain integrations list`. Each recipe in `~/gbrain/recipes/` is a self-contained
 installer. It tells you what credentials to ask for, how to validate, and what cron
-to register. Ask which integrations the deployment needs (email, calendar, voice, Twitter).
+to register. Ask which integrations the deployment needs (email, calendar, voice, Twitter). Notable additions include `honcho-self-hosted-memory` for Hermes conversational memory on your own infrastructure.
 
 Verify: `gbrain integrations doctor` (after at least one is configured)
 

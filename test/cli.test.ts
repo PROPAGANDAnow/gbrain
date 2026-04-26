@@ -135,5 +135,23 @@ describe('CLI dispatch integration', () => {
     expect(tools[0]).toHaveProperty('name');
     expect(tools[0]).toHaveProperty('description');
     expect(tools[0]).toHaveProperty('parameters');
+    const names = tools.map((t: any) => t.name);
+    expect(names).toContain('list_integrations');
+    expect(names).toContain('get_integration');
+    expect(names).toContain('get_integration_status');
+  });
+
+  test('integration contract commands run without a DB connection', async () => {
+    const proc = Bun.spawn(['bun', 'run', 'src/cli.ts', 'integrations-list'], {
+      cwd: new URL('..', import.meta.url).pathname,
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    const stdout = await new Response(proc.stdout).text();
+    const stderr = await new Response(proc.stderr).text();
+    const exitCode = await proc.exited;
+    expect(stderr).not.toContain('No brain configured. Run: gbrain init');
+    expect(stdout).toContain('honcho-self-hosted-memory');
+    expect(exitCode).toBe(0);
   });
 });
