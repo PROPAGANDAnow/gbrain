@@ -189,6 +189,23 @@ describe('CLI integration', () => {
 
 // --- Recipe file validation ---
 
+describe('graphify-memory recipe', () => {
+  test('recipe file parses correctly', () => {
+    const { readFileSync } = require('fs');
+    const content = readFileSync(
+      new URL('../recipes/graphify-memory.md', import.meta.url),
+      'utf-8'
+    );
+    const recipe = parseRecipe(content, 'graphify-memory.md');
+    expect(recipe).not.toBeNull();
+    expect(recipe!.frontmatter.id).toBe('graphify-memory');
+    expect(recipe!.frontmatter.category).toBe('infra');
+    expect(recipe!.frontmatter.health_checks.length).toBeGreaterThan(0);
+    expect(recipe!.body).toContain('gbrain integration-get graphify-memory');
+    expect(recipe!.body).toContain('graphify-out/GRAPH_REPORT.md');
+  });
+});
+
 describe('twilio-voice-brain recipe', () => {
   test('recipe file parses correctly', () => {
     const { readFileSync } = require('fs');

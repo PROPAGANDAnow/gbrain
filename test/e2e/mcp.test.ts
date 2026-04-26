@@ -56,6 +56,9 @@ describe('E2E: MCP Tool Generation', () => {
     expect(names).toContain('get_health');
     expect(names).toContain('sync_brain');
     expect(names).toContain('file_upload');
+    expect(names).toContain('list_integrations');
+    expect(names).toContain('get_integration');
+    expect(names).toContain('get_integration_status');
   });
 
   test('MCP server module can be imported', async () => {

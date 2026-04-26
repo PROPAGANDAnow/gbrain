@@ -77,7 +77,9 @@ async function main() {
     process.exit(1);
   }
 
-  const engine = await connectEngine();
+  const engine = op.requiresEngine === false
+    ? (undefined as unknown as BrainEngine)
+    : await connectEngine();
   try {
     const params = parseOpArgs(op, subArgs);
 
@@ -105,7 +107,9 @@ async function main() {
     console.error(e instanceof Error ? e.message : String(e));
     process.exit(1);
   } finally {
-    await engine.disconnect();
+    if (op.requiresEngine !== false) {
+      await engine.disconnect();
+    }
   }
 }
 
@@ -252,6 +256,29 @@ function formatResult(opName: string, result: unknown): string {
       return versions.map(v =>
         `#${v.id}  ${v.snapshot_at?.toString().slice(0, 19) || '?'}  ${v.compiled_truth?.slice(0, 60) || ''}...`,
       ).join('\n') + '\n';
+    }
+    case 'get_integration_status': {
+      return JSON.stringify(result, null, 2) + '\n';
+    }
+    case 'get_integration': {
+      const r = result as any;
+      const header = [
+        `${r.name} (${r.id} v${r.version})`,
+        r.description,
+        '',
+        `Category:   ${r.category}`,
+        `Status:     ${r.status}`,
+        `Setup time: ${r.setup_time}`,
+      ];
+      if (r.cost_estimate) header.push(`Cost:       ${r.cost_estimate}`);
+      if (r.requires?.length) header.push(`Requires:   ${r.requires.join(', ')}`);
+      header.push('', '--- Recipe Body ---', '', r.body);
+      return header.join('\n') + '\n';
+    }
+    case 'list_integrations': {
+      const rows = result as any[];
+      if (rows.length === 0) return 'No integrations available.\n';
+      return rows.map(r => `${r.id}\t${r.category}\t${r.status}\t${r.name}`).join('\n') + '\n';
     }
     default:
       return JSON.stringify(result, null, 2) + '\n';
@@ -614,6 +641,9 @@ SETUP
   check-update [--json]              Check for new versions
   doctor [--json] [--fast]            Health check (resolver, skills, pgvector, RLS, embeddings)
   integrations [subcommand]          Manage integration recipes (senses + reflexes)
+  integrations-list                  List integration recipes via the shared tool contract
+  integration-get <id>               Show one integration recipe via the shared tool contract
+  integration-status <id>            Show one integration's status via the shared tool contract
 
 PAGES
   get <slug>                         Read a page

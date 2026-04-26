@@ -15,6 +15,11 @@ import { expandQuery } from './search/expansion.ts';
 import { dedupResults } from './search/dedup.ts';
 import { extractPageLinks, isAutoLinkEnabled, isAutoTimelineEnabled, parseTimelineEntries, makeResolver, type UnresolvedFrontmatterRef } from './link-extraction.ts';
 import * as db from './db.ts';
+import {
+  getIntegrationCatalogEntry,
+  getIntegrationStatusDetails,
+  listIntegrationCatalog,
+} from '../commands/integrations.ts';
 
 // --- Types ---
 
@@ -196,6 +201,7 @@ export interface Operation {
   params: Record<string, ParamDef>;
   handler: (ctx: OperationContext, params: Record<string, unknown>) => Promise<unknown>;
   mutating?: boolean;
+  requiresEngine?: boolean;
   cliHints?: {
     name?: string;
     positional?: string[];
@@ -1094,7 +1100,52 @@ const file_url: Operation = {
   },
 };
 
-// --- Jobs (Minions) ---
+const list_integrations: Operation = {
+  name: 'list_integrations',
+  description: 'List integration recipes and current setup status without requiring a brain connection',
+  params: {
+    category: { type: 'string', description: 'Optional category filter', enum: ['infra', 'sense', 'reflex'] },
+  },
+  requiresEngine: false,
+  handler: async (_ctx, p) => listIntegrationCatalog(p.category as 'infra' | 'sense' | 'reflex' | undefined),
+  cliHints: { name: 'integrations-list' },
+};
+
+const get_integration: Operation = {
+  name: 'get_integration',
+  description: 'Get an integration recipe with metadata, setup requirements, and full body',
+  params: {
+    id: { type: 'string', required: true, description: 'Integration recipe id' },
+  },
+  requiresEngine: false,
+  handler: async (_ctx, p) => {
+    const entry = getIntegrationCatalogEntry(p.id as string);
+    if (!entry) {
+      throw new OperationError('page_not_found', `Integration recipe not found: ${p.id}`, 'Run list_integrations to see available recipes');
+    }
+    return entry;
+  },
+  cliHints: { name: 'integration-get', positional: ['id'] },
+};
+
+const get_integration_status: Operation = {
+  name: 'get_integration_status',
+  description: 'Get integration secret and heartbeat status without requiring a brain connection',
+  params: {
+    id: { type: 'string', required: true, description: 'Integration recipe id' },
+  },
+  requiresEngine: false,
+  handler: async (_ctx, p) => {
+    const status = getIntegrationStatusDetails(p.id as string);
+    if (!status) {
+      throw new OperationError('page_not_found', `Integration recipe not found: ${p.id}`, 'Run list_integrations to see available recipes');
+    }
+    return status;
+  },
+  cliHints: { name: 'integration-status', positional: ['id'] },
+};
+
+// --- Exports ---
 
 const submit_job: Operation = {
   name: 'submit_job',
@@ -1332,6 +1383,8 @@ export const operations: Operation[] = [
   log_ingest, get_ingest_log,
   // Files
   file_list, file_upload, file_url,
+  // Integrations catalog
+  list_integrations, get_integration, get_integration_status,
   // Jobs (Minions)
   submit_job, get_job, list_jobs, cancel_job, retry_job, get_job_progress,
   pause_job, resume_job, replay_job, send_job_message,
