@@ -27,13 +27,13 @@ import { execSync } from 'child_process';
 
 // --- Types ---
 
-interface RecipeSecret {
+export interface RecipeSecret {
   name: string;
   description: string;
   where: string;
 }
 
-interface RecipeFrontmatter {
+export interface RecipeFrontmatter {
   id: string;
   name: string;
   version: string;
@@ -46,14 +46,14 @@ interface RecipeFrontmatter {
   cost_estimate?: string;
 }
 
-interface ParsedRecipe {
+export interface ParsedRecipe {
   frontmatter: RecipeFrontmatter;
   body: string;
   filename: string;
   embedded: boolean;
 }
 
-interface HeartbeatEntry {
+export interface HeartbeatEntry {
   ts: string;
   event: string;
   source_version?: string;
@@ -455,7 +455,7 @@ export function getRecipeDirs(): Array<{ dir: string; trusted: boolean }> {
   return dirs;
 }
 
-function loadAllRecipes(): ParsedRecipe[] {
+export function loadAllRecipes(): ParsedRecipe[] {
   const dirs = getRecipeDirs();
   const recipes: ParsedRecipe[] = [];
   const seen = new Set<string>();
@@ -483,7 +483,7 @@ function loadAllRecipes(): ParsedRecipe[] {
   return recipes;
 }
 
-function findRecipe(id: string): ParsedRecipe | null {
+export function findRecipe(id: string): ParsedRecipe | null {
   const recipes = loadAllRecipes();
   const exact = recipes.find(r => r.frontmatter.id === id);
   if (exact) return exact;
@@ -519,7 +519,7 @@ function heartbeatPath(id: string): string {
   return join(heartbeatDir(id), 'heartbeat.jsonl');
 }
 
-function readHeartbeat(id: string): HeartbeatEntry[] {
+export function readHeartbeat(id: string): HeartbeatEntry[] {
   const path = heartbeatPath(id);
   if (!existsSync(path)) return [];
 
@@ -557,7 +557,7 @@ function readHeartbeat(id: string): HeartbeatEntry[] {
 
 // --- Secret Checking ---
 
-function checkSecrets(secrets: RecipeSecret[]): { set: string[]; missing: RecipeSecret[] } {
+export function checkSecrets(secrets: RecipeSecret[]): { set: string[]; missing: RecipeSecret[] } {
   const set: string[] = [];
   const missing: RecipeSecret[] = [];
   for (const s of secrets) {
@@ -570,9 +570,9 @@ function checkSecrets(secrets: RecipeSecret[]): { set: string[]; missing: Recipe
   return { set, missing };
 }
 
-type IntegrationStatus = 'available' | 'configured' | 'active';
+export type IntegrationStatus = 'available' | 'configured' | 'active';
 
-function getStatus(recipe: ParsedRecipe): IntegrationStatus {
+export function getStatus(recipe: ParsedRecipe): IntegrationStatus {
   const { set, missing } = checkSecrets(recipe.frontmatter.secrets);
   // All required secrets must be set to be "configured"
   if (missing.length > 0) return 'available';
@@ -584,6 +584,77 @@ function getStatus(recipe: ParsedRecipe): IntegrationStatus {
   if (recentEvents.length > 0) return 'active';
 
   return 'configured';
+}
+
+export function listIntegrationCatalog(category?: RecipeFrontmatter['category']) {
+  const recipes = loadAllRecipes();
+  const filtered = category
+    ? recipes.filter(r => r.frontmatter.category === category)
+    : recipes;
+
+  return filtered.map(r => ({
+    id: r.frontmatter.id,
+    name: r.frontmatter.name,
+    version: r.frontmatter.version,
+    description: r.frontmatter.description,
+    category: r.frontmatter.category,
+    status: getStatus(r),
+    setup_time: r.frontmatter.setup_time,
+    requires: r.frontmatter.requires,
+  }));
+}
+
+export function getIntegrationCatalogEntry(id: string) {
+  const recipe = findRecipe(id);
+  if (!recipe) return null;
+
+  const f = recipe.frontmatter;
+  const { set, missing } = checkSecrets(f.secrets);
+  return {
+    id: f.id,
+    name: f.name,
+    version: f.version,
+    description: f.description,
+    category: f.category,
+    setup_time: f.setup_time,
+    cost_estimate: f.cost_estimate,
+    requires: f.requires,
+    status: getStatus(recipe),
+    secrets: {
+      set,
+      missing: missing.map(secret => ({
+        name: secret.name,
+        description: secret.description,
+        where: secret.where,
+      })),
+    },
+    health_check_count: f.health_checks.length,
+    body: recipe.body,
+  };
+}
+
+export function getIntegrationStatusDetails(id: string) {
+  const recipe = findRecipe(id);
+  if (!recipe) return null;
+
+  const { set, missing } = checkSecrets(recipe.frontmatter.secrets);
+  const heartbeat = readHeartbeat(recipe.frontmatter.id);
+  return {
+    id: recipe.frontmatter.id,
+    status: getStatus(recipe),
+    secrets: {
+      set,
+      missing: missing.map(secret => ({
+        name: secret.name,
+        description: secret.description,
+        where: secret.where,
+      })),
+    },
+    heartbeat: {
+      total_events: heartbeat.length,
+      last_event: heartbeat.length > 0 ? heartbeat[heartbeat.length - 1] : null,
+    },
+  };
 }
 
 // --- Dependency Resolution ---
