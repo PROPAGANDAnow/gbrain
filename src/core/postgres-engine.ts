@@ -1,5 +1,5 @@
 import postgres from 'postgres';
-import type { BrainEngine, LinkBatchInput, TimelineBatchInput, ReservedConnection } from './engine.ts';
+import type { BrainEngine, LinkBatchInput, TimelineBatchInput, ReservedConnection, DreamVerdict, DreamVerdictInput } from './engine.ts';
 import { MAX_SEARCH_LIMIT, clampSearchLimit } from './engine.ts';
 import { runMigrations } from './migrate.ts';
 import { SCHEMA_SQL } from './schema-embedded.ts';
@@ -99,9 +99,26 @@ export class PostgresEngine implements BrainEngine {
   async initSchema(): Promise<void> {
     const conn = this.sql;
     // Advisory lock prevents concurrent initSchema() calls from deadlocking
-    // on DDL statements (DROP TRIGGER + CREATE TRIGGER acquire AccessExclusiveLock)
+    // on DDL statements (DROP TRIGGER + CREATE TRIGGER acquire AccessExclusiveLock).
+    //
+    // Honest limitation: pg_advisory_lock(42) is session-scoped to this pooled
+    // connection. runMigrations() below uses engine.transaction() and
+    // withReservedConnection() which may hop to a different backend in the
+    // pool. Cross-process serialization of initSchema is best-effort, not a
+    // correctness guarantee. Pre-existing concern; the bootstrap doesn't
+    // change it.
     await conn`SELECT pg_advisory_lock(42)`;
     try {
+      // Pre-schema bootstrap: add forward-referenced state the embedded schema
+      // blob requires but that older brains don't have yet. Without this, a
+      // pre-v0.18 brain hits `CREATE INDEX idx_pages_source_id ON pages(source_id)`
+      // (issues #366/#375/#378/#396), or a pre-v0.13 brain hits
+      // `CREATE INDEX idx_links_source ON links(link_source)` (#266/#357), and
+      // SCHEMA_SQL crashes before runMigrations gets a chance to apply the
+      // missing column. Bootstrap is structurally idempotent and a no-op on
+      // fresh installs and modern brains.
+      await this.applyForwardReferenceBootstrap();
+
       await conn.unsafe(SCHEMA_SQL);
 
       // Run any pending migrations automatically
@@ -119,6 +136,113 @@ export class PostgresEngine implements BrainEngine {
       }
     } finally {
       await conn`SELECT pg_advisory_unlock(42)`;
+    }
+  }
+
+  /**
+   * Bootstrap state that SCHEMA_SQL forward-references but that older brains
+   * don't have yet. Mirror of `PGLiteEngine#applyForwardReferenceBootstrap`
+   * in shape and intent. Currently covers:
+   *
+   *   - `sources` table + default seed (FK target of pages.source_id) — v0.18
+   *   - `pages.source_id` column (indexed by `idx_pages_source_id`) — v0.18
+   *   - `links.link_source` column (indexed by `idx_links_source`) — v0.13
+   *   - `links.origin_page_id` column (indexed by `idx_links_origin`) — v0.13
+   *   - `content_chunks.symbol_name` column (indexed by `idx_chunks_symbol_name`) — v0.19
+   *   - `content_chunks.language` column (indexed by `idx_chunks_language`) — v0.19
+   *
+   * Keep this in sync with the PGLite version; covered by
+   * `test/schema-bootstrap-coverage.test.ts` (PGLite side) and
+   * `test/e2e/postgres-bootstrap.test.ts` (Postgres side).
+   */
+  private async applyForwardReferenceBootstrap(): Promise<void> {
+    const conn = this.sql;
+
+    // Single round-trip probe for every forward-reference target.
+    // current_schema() resolves to whatever search_path the connection uses,
+    // which matches schema-embedded.ts's `public.` references.
+    const probeRows = await conn<{
+      pages_exists: boolean;
+      source_id_exists: boolean;
+      links_exists: boolean;
+      link_source_exists: boolean;
+      origin_page_id_exists: boolean;
+      chunks_exists: boolean;
+      symbol_name_exists: boolean;
+      language_exists: boolean;
+    }[]>`
+      SELECT
+        EXISTS (SELECT 1 FROM information_schema.tables
+                WHERE table_schema = current_schema() AND table_name = 'pages') AS pages_exists,
+        EXISTS (SELECT 1 FROM information_schema.columns
+                WHERE table_schema = current_schema() AND table_name = 'pages' AND column_name = 'source_id') AS source_id_exists,
+        EXISTS (SELECT 1 FROM information_schema.tables
+                WHERE table_schema = current_schema() AND table_name = 'links') AS links_exists,
+        EXISTS (SELECT 1 FROM information_schema.columns
+                WHERE table_schema = current_schema() AND table_name = 'links' AND column_name = 'link_source') AS link_source_exists,
+        EXISTS (SELECT 1 FROM information_schema.columns
+                WHERE table_schema = current_schema() AND table_name = 'links' AND column_name = 'origin_page_id') AS origin_page_id_exists,
+        EXISTS (SELECT 1 FROM information_schema.tables
+                WHERE table_schema = current_schema() AND table_name = 'content_chunks') AS chunks_exists,
+        EXISTS (SELECT 1 FROM information_schema.columns
+                WHERE table_schema = current_schema() AND table_name = 'content_chunks' AND column_name = 'symbol_name') AS symbol_name_exists,
+        EXISTS (SELECT 1 FROM information_schema.columns
+                WHERE table_schema = current_schema() AND table_name = 'content_chunks' AND column_name = 'language') AS language_exists
+    `;
+    const probe = probeRows[0]!;
+
+    const needsPagesBootstrap = probe.pages_exists && !probe.source_id_exists;
+    const needsLinksBootstrap = probe.links_exists
+      && (!probe.link_source_exists || !probe.origin_page_id_exists);
+    const needsChunksBootstrap = probe.chunks_exists
+      && (!probe.symbol_name_exists || !probe.language_exists);
+
+    if (!needsPagesBootstrap && !needsLinksBootstrap && !needsChunksBootstrap) return;
+
+    console.log('  Pre-v0.21 brain detected, applying forward-reference bootstrap');
+
+    if (needsPagesBootstrap) {
+      // Mirror schema-embedded.ts's `sources` shape so the subsequent
+      // SCHEMA_SQL CREATE TABLE IF NOT EXISTS is a true no-op.
+      await conn.unsafe(`
+        CREATE TABLE IF NOT EXISTS sources (
+          id            TEXT PRIMARY KEY,
+          name          TEXT NOT NULL UNIQUE,
+          local_path    TEXT,
+          last_commit   TEXT,
+          last_sync_at  TIMESTAMPTZ,
+          config        JSONB NOT NULL DEFAULT '{}'::jsonb,
+          created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+        );
+        INSERT INTO sources (id, name, config)
+          VALUES ('default', 'default', '{"federated": true}'::jsonb)
+          ON CONFLICT (id) DO NOTHING;
+        ALTER TABLE pages ADD COLUMN IF NOT EXISTS source_id TEXT
+          NOT NULL DEFAULT 'default' REFERENCES sources(id) ON DELETE CASCADE;
+      `);
+    }
+
+    if (needsLinksBootstrap) {
+      // v11 (links_provenance_columns) handles the CHECK constraint, the
+      // UNIQUE swap, and the backfill. The bootstrap only adds enough state
+      // for SCHEMA_SQL's `CREATE INDEX idx_links_source/origin` not to crash.
+      // v11 runs later via runMigrations and is idempotent.
+      await conn.unsafe(`
+        ALTER TABLE links ADD COLUMN IF NOT EXISTS link_source TEXT;
+        ALTER TABLE links ADD COLUMN IF NOT EXISTS origin_page_id INTEGER
+          REFERENCES pages(id) ON DELETE SET NULL;
+      `);
+    }
+
+    if (needsChunksBootstrap) {
+      // v26 (content_chunks_code_metadata) adds the full code-chunk metadata
+      // surface. The bootstrap only adds the two columns the schema blob's
+      // partial indexes reference (idx_chunks_symbol_name, idx_chunks_language).
+      // v26 runs later via runMigrations and adds the rest idempotently.
+      await conn.unsafe(`
+        ALTER TABLE content_chunks ADD COLUMN IF NOT EXISTS language TEXT;
+        ALTER TABLE content_chunks ADD COLUMN IF NOT EXISTS symbol_name TEXT;
+      `);
     }
   }
 
@@ -210,11 +334,17 @@ export class PostgresEngine implements BrainEngine {
     const tagJoin = filters?.tag ? sql`JOIN tags t ON t.page_id = p.id` : sql``;
     const tagCondition = filters?.tag ? sql`AND t.tag = ${filters.tag}` : sql``;
     const updatedCondition = updatedAfter ? sql`AND p.updated_at > ${updatedAfter}::timestamptz` : sql``;
+    // slugPrefix uses the (source_id, slug) UNIQUE btree index for range scans.
+    // Escape LIKE metacharacters so the user prefix is treated as a literal.
+    const slugPrefix = filters?.slugPrefix;
+    const slugCondition = slugPrefix
+      ? sql`AND p.slug LIKE ${slugPrefix.replace(/[\\%_]/g, (c) => '\\' + c) + '%'} ESCAPE '\\'`
+      : sql``;
 
     const rows = await sql`
       SELECT p.* FROM pages p
       ${tagJoin}
-      WHERE 1=1 ${typeCondition} ${tagCondition} ${updatedCondition}
+      WHERE 1=1 ${typeCondition} ${tagCondition} ${updatedCondition} ${slugCondition}
       ORDER BY p.updated_at DESC LIMIT ${limit} OFFSET ${offset}
     `;
 
@@ -1171,6 +1301,39 @@ export class PostgresEngine implements BrainEngine {
       `;
     }
     return rows as unknown as RawData[];
+  }
+
+  // Dream-cycle significance verdict cache (v0.23).
+  async getDreamVerdict(filePath: string, contentHash: string): Promise<DreamVerdict | null> {
+    const sql = this.sql;
+    const rows = await sql<Array<{
+      worth_processing: boolean;
+      reasons: string[] | null;
+      judged_at: Date;
+    }>>`
+      SELECT worth_processing, reasons, judged_at
+      FROM dream_verdicts
+      WHERE file_path = ${filePath} AND content_hash = ${contentHash}
+    `;
+    if (rows.length === 0) return null;
+    const r = rows[0];
+    return {
+      worth_processing: r.worth_processing,
+      reasons: r.reasons ?? [],
+      judged_at: r.judged_at instanceof Date ? r.judged_at.toISOString() : String(r.judged_at),
+    };
+  }
+
+  async putDreamVerdict(filePath: string, contentHash: string, verdict: DreamVerdictInput): Promise<void> {
+    const sql = this.sql;
+    await sql`
+      INSERT INTO dream_verdicts (file_path, content_hash, worth_processing, reasons)
+      VALUES (${filePath}, ${contentHash}, ${verdict.worth_processing}, ${sql.json(verdict.reasons as Parameters<typeof sql.json>[0])})
+      ON CONFLICT (file_path, content_hash) DO UPDATE SET
+        worth_processing = EXCLUDED.worth_processing,
+        reasons = EXCLUDED.reasons,
+        judged_at = now()
+    `;
   }
 
   // Versions
