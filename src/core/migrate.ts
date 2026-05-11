@@ -2294,6 +2294,8 @@ export const MIGRATIONS: Migration[] = [
                             CHECK (kind IN ('event','preference','commitment','belief','fact')),
           visibility        TEXT        NOT NULL DEFAULT 'private'
                             CHECK (visibility IN ('private','world')),
+          notability        TEXT        NOT NULL DEFAULT 'medium'
+                            CHECK (notability IN ('high','medium','low')),
           context           TEXT,
           valid_from        TIMESTAMPTZ NOT NULL DEFAULT now(),
           valid_until       TIMESTAMPTZ,
@@ -2390,6 +2392,160 @@ export const MIGRATIONS: Migration[] = [
         SET params = (params #>> '{}')::jsonb
         WHERE jsonb_typeof(params) = 'string'
           AND params #>> '{}' LIKE '{%';
+    `,
+  },
+  {
+    version: 47,
+    name: 'facts_notability_alter',
+    // v0.31.2 (B2 ship-blocker fix). Renumbered from v46 → v47 after the
+    // merge from master picked up v0.31.3's mcp_request_log_params_jsonb_normalize
+    // at v46. facts.notability column shipped via v45's inline CREATE TABLE
+    // on fresh installs, but every brain that ran v45 BEFORE notability
+    // landed in v45's blob is now missing the column. INSERT crashes with
+    // "column does not exist" on first sync after upgrade.
+    //
+    // This migration is the ALTER counterpart for those existing brains.
+    // Idempotent under all states:
+    //   - Fresh install (v45 already added column): ADD COLUMN IF NOT EXISTS
+    //     no-ops; named CHECK probe finds existing constraint → skip.
+    //   - Old brain (no column): ADD COLUMN adds it with NOT NULL DEFAULT;
+    //     named CHECK probe finds nothing → adds CHECK.
+    //   - Partial state (column exists, no CHECK): ADD COLUMN no-ops;
+    //     CHECK probe adds the named constraint.
+    //
+    // CHECK constraint is named `facts_notability_check` (named, not autogen)
+    // so the idempotency probe can find it deterministically. If v45 inline
+    // already created an autogen CHECK with identical semantics, the named
+    // one is additive and non-conflicting (Postgres allows multiple CHECKs
+    // covering the same predicate).
+    //
+    // Both engines run the same SQL — PGLite is real Postgres in WASM and
+    // supports DO $$ blocks. PGLite users with older persistent brains hit
+    // the same bug.
+    sql: `
+      ALTER TABLE facts ADD COLUMN IF NOT EXISTS notability TEXT NOT NULL DEFAULT 'medium';
+
+      DO $$ BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint
+          WHERE conname = 'facts_notability_check'
+            AND conrelid = 'facts'::regclass
+        ) THEN
+          ALTER TABLE facts ADD CONSTRAINT facts_notability_check
+            CHECK (notability IN ('high','medium','low'));
+        END IF;
+      END $$;
+    `,
+  },
+  {
+    version: 48,
+    name: 'takes_weight_round_to_grid',
+    // v0.32.0 — Takes v2 wave (renumbered from v46 → v48 after merging master's
+    // v0.31.3 wave which claimed v46 with mcp_request_log_params_jsonb_normalize).
+    // Backfill the weight column to the 0.05 grid that v0.31's engine layer
+    // enforces on insert (PR #795). Cross-modal eval over 100K production
+    // takes flagged 0.74, 0.82-style values as false precision; the engine
+    // now rounds new inserts to the grid, but pre-v0.32 rows still carry the
+    // old precision and bias every query that reads weight (search ranking,
+    // scorecard, calibration math).
+    //
+    // What `transaction: false` actually buys (codex review #2 correction):
+    // it frees the migration runner from holding a long transaction across
+    // the UPDATE so other gbrain processes (workers, MCP queries) can
+    // interleave. It does NOT enable mid-statement resume — a single SQL
+    // statement either completes or rolls back.
+    //
+    // Idempotency: the WHERE clause re-evaluates each row. After the first
+    // complete pass every row is on-grid; a second invocation of the
+    // migration is a zero-row UPDATE.
+    //
+    // The IS NOT NULL guard is cheap insurance against any stale schema
+    // where weight was nullable; current schema (v28+) has NOT NULL.
+    sql: `
+      -- Tolerance-based comparison. weight is stored as REAL (float32), which
+      -- has ~1e-7 representation noise. The 0.05 grid spacing is 5e-2. Any
+      -- value with abs(weight - on_grid) > 1e-3 is genuinely off-grid; below
+      -- that, the difference is float32 noise from prior round-trips and
+      -- re-writing it would only re-introduce the same noise, not converge.
+      -- (The naive "weight <> ROUND(...)" form fires every time because
+      -- mixed REAL/NUMERIC comparison promotes weight to DOUBLE PRECISION
+      -- first, surfacing the 1e-7 noise as inequality.)
+      UPDATE takes
+         SET weight = (ROUND(weight::numeric * 20) / 20)::real
+       WHERE weight IS NOT NULL
+         AND abs(weight::numeric - ROUND(weight::numeric * 20) / 20) > 0.001;
+    `,
+    transaction: false,
+  },
+  {
+    version: 49,
+    name: 'eval_takes_quality_runs',
+    // v0.32 — Takes v2 wave (EXP-5). Renumbered from v47 → v49 after merging
+    // master's v0.31.3 wave (v46 → mcp_request_log_params_jsonb_normalize).
+    //
+    // DB-authoritative store for the takes-quality eval CLI's receipts.
+    // Codex review #6 corrected the original two-phase plan (split-brain
+    // reconciliation gap) — DB row is the source of truth, the disk file
+    // is a best-effort artifact.
+    //
+    // 4-sha unique key (corpus, prompt, model_set, rubric) so:
+    //   - Re-running the same run is idempotent (ON CONFLICT DO NOTHING).
+    //   - A future rubric tweak produces a different rubric_sha8 → distinct
+    //     row → trend mode segregates by rubric_version (codex review #3).
+    //
+    // receipt_json carries the full receipt blob so `replay` can reconstruct
+    // when the disk artifact is missing (DB-authoritative replay path).
+    //
+    // Index `(rubric_version, created_at DESC)` matches the trend query
+    // shape: ORDER BY created_at DESC LIMIT N filtered by rubric_version.
+    sql: `
+      CREATE TABLE IF NOT EXISTS eval_takes_quality_runs (
+        id                    BIGSERIAL    PRIMARY KEY,
+        receipt_sha8_corpus   TEXT         NOT NULL,
+        receipt_sha8_prompt   TEXT         NOT NULL,
+        receipt_sha8_models   TEXT         NOT NULL,
+        receipt_sha8_rubric   TEXT         NOT NULL,
+        rubric_version        TEXT         NOT NULL,
+        verdict               TEXT         NOT NULL CHECK (verdict IN ('pass','fail','inconclusive')),
+        overall_score         REAL         NOT NULL,
+        dim_scores            JSONB        NOT NULL,
+        cost_usd              REAL         NOT NULL,
+        receipt_json          JSONB        NOT NULL,
+        receipt_disk_path     TEXT,
+        created_at            TIMESTAMPTZ  NOT NULL DEFAULT now(),
+        UNIQUE (receipt_sha8_corpus, receipt_sha8_prompt, receipt_sha8_models, receipt_sha8_rubric)
+      );
+      CREATE INDEX IF NOT EXISTS eval_takes_quality_runs_trend_idx
+        ON eval_takes_quality_runs (rubric_version, created_at DESC);
+    `,
+  },
+  {
+    version: 50,
+    name: 'ingest_log_source_id',
+    // v0.31.2 (codex P1 #3). Renumbered from v47 → v50 after the merge from
+    // master picked up v0.31.3's v46 + the takes v2 wave's v48 + v49.
+    //
+    // facts:absorb logging (commit 13 + doctor's facts_extraction_health
+    // check in commit 12) needs source_id on ingest_log so multi-source
+    // brains can scope failure counts per source. Pre-fix the column doesn't
+    // exist; the schema.sql header even calls it out: "NOTE (v0.18.0 Step 1):
+    // ingest_log.source_id is NOT added yet — lands in v17 alongside the
+    // sync rewrite." Three years on, sync.ts writes ingest_log without
+    // source_id and doctor only checks 'default'. This migration adds the
+    // column + backfills existing rows to 'default' via NOT NULL DEFAULT.
+    //
+    // Idempotent under all states (matches v47's shape):
+    //   - Fresh install: ALTER no-ops on IF NOT EXISTS.
+    //   - Old brain (no column): ALTER adds it with NOT NULL DEFAULT 'default';
+    //     existing rows inherit the default.
+    //   - Re-run after success: IF NOT EXISTS short-circuits.
+    //
+    // Both engines run the same SQL; ingest_log is engine-agnostic.
+    sql: `
+      ALTER TABLE ingest_log ADD COLUMN IF NOT EXISTS source_id TEXT NOT NULL DEFAULT 'default';
+
+      CREATE INDEX IF NOT EXISTS idx_ingest_log_source_type_created
+        ON ingest_log (source_id, source_type, created_at DESC);
     `,
   },
 ];

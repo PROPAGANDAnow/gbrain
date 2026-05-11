@@ -567,6 +567,12 @@ export interface TimelineOpts {
   limit?: number;
   after?: string;
   before?: string;
+  /**
+   * v0.31.8: when set, scope the page-id lookup to this source. When omitted,
+   * the read returns timeline entries for every same-slug page across sources
+   * (pre-v0.31.8 behavior; preserved by the two-branch query in both engines).
+   */
+  sourceId?: string;
 }
 
 // Raw data
@@ -674,6 +680,8 @@ export interface BrainHealth {
 // Ingest log
 export interface IngestLogEntry {
   id: number;
+  /** v0.31.2: brain source identifier; default 'default'. Added by migration v47. */
+  source_id: string;
   source_type: string;
   source_ref: string;
   pages_updated: string[];
@@ -682,6 +690,8 @@ export interface IngestLogEntry {
 }
 
 export interface IngestLogInput {
+  /** v0.31.2: brain source identifier; defaults to 'default' on the engine. */
+  source_id?: string;
   source_type: string;
   source_ref: string;
   pages_updated: string[];

@@ -16,6 +16,7 @@ import { dedupResults } from './search/dedup.ts';
 import { captureEvalCandidate, isEvalCaptureEnabled, isEvalScrubEnabled } from './eval-capture.ts';
 import type { HybridSearchMeta } from './types.ts';
 import { extractPageLinks, isAutoLinkEnabled, isAutoTimelineEnabled, parseTimelineEntries, makeResolver, type UnresolvedFrontmatterRef } from './link-extraction.ts';
+import { isFactsBackstopEligible } from './facts/eligibility.ts';
 import { stripTakesFence } from './takes-fence.ts';
 import * as db from './db.ts';
 import { VERSION } from '../version.ts';
@@ -375,14 +376,20 @@ const get_page: Operation = {
     const slug = p.slug as string;
     const fuzzy = (p.fuzzy as boolean) || false;
     const includeDeleted = (p.include_deleted as boolean) === true;
+    // v0.31.8 (D20): thread ctx.sourceId through read-side ops. Only pass
+    // sourceId when it's set on ctx — when unset (local CLI default chain
+    // resolves to no source), the engine two-branch query falls through to
+    // the cross-source view, preserving pre-v0.31.8 behavior. MCP callers
+    // (stdio + HTTP) populate ctx.sourceId via the transport layer.
+    const sourceOpts = ctx.sourceId ? { sourceId: ctx.sourceId } : {};
 
-    let page = await ctx.engine.getPage(slug, { includeDeleted });
+    let page = await ctx.engine.getPage(slug, { includeDeleted, ...sourceOpts });
     let resolved_slug: string | undefined;
 
     if (!page && fuzzy) {
       const candidates = await ctx.engine.resolveSlugs(slug);
       if (candidates.length === 1) {
-        page = await ctx.engine.getPage(candidates[0], { includeDeleted });
+        page = await ctx.engine.getPage(candidates[0], { includeDeleted, ...sourceOpts });
         resolved_slug = candidates[0];
       } else if (candidates.length > 1) {
         return { error: 'ambiguous_slug', candidates };
@@ -393,7 +400,7 @@ const get_page: Operation = {
       throw new OperationError('page_not_found', `Page not found: ${slug}`, includeDeleted ? 'Check the slug or use fuzzy: true' : 'Page may be soft-deleted; pass include_deleted: true to verify');
     }
 
-    const tags = await ctx.engine.getTags(page.slug);
+    const tags = await ctx.engine.getTags(page.slug, sourceOpts);
     // Privacy boundary for the per-token takes-holder allow-list (v0.28.6).
     // takes_list / takes_search / think.gather filter rows by holder at the
     // SQL layer, but takes are also rendered as a markdown table inside the
@@ -463,7 +470,15 @@ const put_page: Operation = {
     // so Gemini / Ollama / Voyage brains don't silently drop embeddings (Codex C2).
     const { isAvailable } = await import('./ai/gateway.ts');
     const noEmbed = !isAvailable('embedding');
-    const result = await importFromContent(ctx.engine, slug, p.content as string, { noEmbed });
+    // v0.31.8 (D7 / codex OV-1): thread ctx.sourceId so put_page on a
+    // multi-source brain lands in the intended source instead of the
+    // default-source clobber path. importFromContent already accepts
+    // opts.sourceId (PR #707/#757 engine work); previously the op handler
+    // just didn't pass it.
+    const result = await importFromContent(ctx.engine, slug, p.content as string, {
+      noEmbed,
+      ...(ctx.sourceId ? { sourceId: ctx.sourceId } : {}),
+    });
 
     // Auto-link post-hook: runs AFTER importFromContent (which is its own
     // transaction). Runs even on status='skipped' so reconciliation catches drift
@@ -498,7 +513,7 @@ const put_page: Operation = {
       try {
         const enabled = await isAutoLinkEnabled(ctx.engine);
         if (enabled) {
-          autoLinks = await runAutoLink(ctx.engine, slug, result.parsedPage);
+          autoLinks = await runAutoLink(ctx.engine, slug, result.parsedPage, ctx.sourceId ? { sourceId: ctx.sourceId } : undefined);
         }
       } catch (e) {
         autoLinks = { error: e instanceof Error ? e.message : String(e) };
@@ -535,46 +550,41 @@ const put_page: Operation = {
     // a fact-extraction job into the bounded queue. Skipped on dry-run,
     // dream-generated content (anti-loop), and non-eligible kinds (sync,
     // ingest, file uploads, code pages). Never blocks the put_page response.
+    // v0.31.2: routed through runFactsBackstop (PR1 commit 6) so put_page
+    // and sync share the same eligibility/extract/dedup/insert pipeline.
+    // Queue mode preserves the prior fire-and-forget shape (caller's
+    // put_page response stays fast). Default 'all' notability filter
+    // (MEDIUM facts wait for the dream cycle but DO land via put_page,
+    // matching the pre-fix behavior on this surface).
     let factsQueued: { queued: boolean } | { skipped: string } | undefined;
     try {
-      const { isFactsExtractionEnabled } = await import('./facts/extract.ts');
-      const enabled = await isFactsExtractionEnabled(ctx.engine);
-      const eligible = enabled
-        ? isFactsBackstopEligible(slug, result.parsedPage)
-        : { ok: false as const, reason: 'extraction_disabled' };
-      if (!eligible.ok) {
-        factsQueued = { skipped: eligible.reason };
-      } else {
-        const { getFactsQueue } = await import('./facts/queue.ts');
-        const { extractFactsFromTurn } = await import('./facts/extract.ts');
-        const { resolveEntitySlug } = await import('./entities/resolve.ts');
-        const sourceId = ctx.sourceId ?? 'default';
-        const sessionId = (ctx as { source_session?: string }).source_session ?? null;
-        // result.parsedPage non-null is a precondition of backstop eligibility,
-        // verified above; the type narrows for the inner closure.
-        const body = result.parsedPage?.compiled_truth ?? '';
-        const enqueued = getFactsQueue().enqueue(async (signal) => {
-          if (signal.aborted) return;
-          const facts = await extractFactsFromTurn({
-            turnText: body,
-            sessionId,
-            source: 'mcp:put_page',
-            isDreamGenerated: false,
-            abortSignal: signal,
-          });
-          for (const f of facts) {
-            if (signal.aborted) return;
-            const resolvedSlug = f.entity_slug
-              ? await resolveEntitySlug(ctx.engine, sourceId, f.entity_slug)
-              : null;
-            await ctx.engine.insertFact({
-              ...f,
-              entity_slug: resolvedSlug,
-              visibility: 'private',
-            }, { source_id: sourceId });
-          }
-        }, sessionId ?? slug);
-        factsQueued = enqueued > -1 ? { queued: true } : { skipped: 'queue_shutdown' };
+      const { runFactsBackstop } = await import('./facts/backstop.ts');
+      const r = await runFactsBackstop(
+        {
+          slug,
+          type: result.parsedPage!.type,
+          compiled_truth: result.parsedPage!.compiled_truth,
+          frontmatter: result.parsedPage!.frontmatter,
+        },
+        {
+          engine: ctx.engine,
+          sourceId: ctx.sourceId ?? 'default',
+          sessionId: (ctx as { source_session?: string }).source_session ?? null,
+          source: 'mcp:put_page',
+          mode: 'queue',
+        },
+      );
+      if (r.mode === 'queue' && r.enqueued) {
+        factsQueued = { queued: true };
+      } else if (r.mode === 'queue' && r.skipped) {
+        // Preserve the pre-v0.31.2 response shape for MCP clients:
+        // 'kind:guide' / 'too_short' / 'subagent_namespace' / 'dream_generated'
+        // (bare reasons), not the helper's namespaced 'eligibility_failed:...'
+        // discriminator. Map back here.
+        const bare = r.skipped.startsWith('eligibility_failed:')
+          ? r.skipped.slice('eligibility_failed:'.length)
+          : r.skipped;
+        factsQueued = { skipped: bare };
       }
     } catch {
       factsQueued = { skipped: 'backstop_error' };
@@ -614,38 +624,9 @@ const put_page: Operation = {
   cliHints: { name: 'put', positional: ['slug'], stdin: 'content' },
 };
 
-/**
- * v0.31: backstop eligibility. The put_page facts hook fires only on
- * conversation-shape pages, where extraction is most useful. Pages from
- * sync / ingest / file upload / code-import paths have their own surfaces
- * (extract takes / search) and shouldn't pump the hot memory layer.
- *
- * Eligible:
- *   - kind/type in: note, meeting, slack, email, calendar-event, source, writing
- *   - body length >= 80 chars (skip TODO-style snippets)
- *   - slug NOT under wiki/agents/ (subagent scratch is its own world)
- *   - dream_generated:true frontmatter is anti-loop reject
- *
- * Reasons returned for the skipped envelope are stable strings consumed
- * by tests and observability.
- */
-function isFactsBackstopEligible(
-  slug: string,
-  parsed: { type: PageType; compiled_truth: string; frontmatter: Record<string, unknown> } | null | undefined,
-): { ok: true } | { ok: false; reason: string } {
-  if (!parsed) return { ok: false, reason: 'no_parsed_page' };
-  if (slug.startsWith('wiki/agents/')) return { ok: false, reason: 'subagent_namespace' };
-  if (parsed.frontmatter && parsed.frontmatter.dream_generated === true) {
-    return { ok: false, reason: 'dream_generated' };
-  }
-  const eligibleTypes: PageType[] = [
-    'note', 'meeting', 'slack', 'email', 'calendar-event', 'source', 'writing',
-  ];
-  if (!eligibleTypes.includes(parsed.type)) return { ok: false, reason: `kind:${parsed.type}` };
-  const body = (parsed.compiled_truth ?? '').trim();
-  if (body.length < 80) return { ok: false, reason: 'too_short' };
-  return { ok: true };
-}
+// v0.31.2: isFactsBackstopEligible moved to src/core/facts/eligibility.ts
+// so sync.ts, file_upload, code_import, and runFactsBackstop all share one
+// predicate. Imported above.
 
 /**
  * Extract entity refs from a freshly-written page, sync the links table to match.
@@ -661,8 +642,23 @@ async function runAutoLink(
   engine: BrainEngine,
   slug: string,
   parsed: { type: PageType; compiled_truth: string; timeline: string; frontmatter: Record<string, unknown> },
+  opts?: { sourceId?: string },
 ): Promise<{ created: number; removed: number; errors: number; unresolved: UnresolvedFrontmatterRef[] }> {
   const fullContent = parsed.compiled_truth + '\n' + parsed.timeline;
+  // v0.31.8 (codex OV-2): thread sourceId through every read + write inside
+  // reconcileLinks. Without this the FS walker reads cross-source links/slugs
+  // but writes scoped to one source — phantom stale-deletions and duplicate
+  // inserts. opts.sourceId is set when caller knows the source (put_page from
+  // a multi-source-aware handler); when omitted, every read returns the
+  // pre-v0.31.8 cross-source view (back-compat for any existing caller).
+  const sourceOpts = opts?.sourceId ? { sourceId: opts.sourceId } : {};
+  const linkSourceOpts = opts?.sourceId
+    ? { fromSourceId: opts.sourceId, toSourceId: opts.sourceId, originSourceId: opts.sourceId }
+    : {};
+  const removeSourceOpts = opts?.sourceId
+    ? { fromSourceId: opts.sourceId, toSourceId: opts.sourceId }
+    : {};
+
   // Live-mode resolver: per-put throwaway cache, pg_trgm + optional search.
   const resolver = makeResolver(engine, { mode: 'live' });
   const { candidates, unresolved } = await extractPageLinks(
@@ -671,7 +667,9 @@ async function runAutoLink(
 
   // Resolve which targets exist (skip refs to non-existent pages to avoid FK
   // violation churn in addLink). One getAllSlugs call upfront, O(1) lookup.
-  const allSlugs = await engine.getAllSlugs();
+  // v0.31.8 (D12): scoped to the source when opts.sourceId is set so wikilink
+  // resolution doesn't span unrelated sources.
+  const allSlugs = await engine.getAllSlugs(sourceOpts);
   const valid = candidates.filter(c =>
     allSlugs.has(c.targetSlug) && (!c.fromSlug || allSlugs.has(c.fromSlug))
   );
@@ -703,10 +701,10 @@ async function runAutoLink(
     } catch {
       // engine doesn't support advisory locks — fall through
     }
-    const existingOut = await tx.getLinks(slug);
+    const existingOut = await tx.getLinks(slug, sourceOpts);
     // Incoming: we only look at frontmatter edges WE authored (origin_slug=slug).
     // Non-frontmatter and other-page frontmatter edges survive untouched.
-    const existingInRaw = await tx.getBacklinks(slug);
+    const existingInRaw = await tx.getBacklinks(slug, sourceOpts);
     const existingIn = existingInRaw.filter(
       l => l.link_source === 'frontmatter' && l.origin_slug === slug,
     );
@@ -733,6 +731,7 @@ async function runAutoLink(
         await tx.addLink(
           slug, c.targetSlug, c.context, c.linkType,
           c.linkSource, c.originSlug, c.originField,
+          linkSourceOpts,
         );
         const existKey = `${c.targetSlug}\u0000${c.linkType}\u0000${c.linkSource ?? 'markdown'}`;
         const exists = reconcilableOut.some(l =>
@@ -750,6 +749,7 @@ async function runAutoLink(
         await tx.addLink(
           c.fromSlug!, c.targetSlug, c.context, c.linkType,
           'frontmatter', c.originSlug, c.originField,
+          linkSourceOpts,
         );
         const existKey = `${c.fromSlug}\u0000${c.linkType}`;
         const exists = existingIn.some(l =>
@@ -766,7 +766,7 @@ async function runAutoLink(
       const key = `${l.to_slug}\u0000${l.link_type}\u0000${l.link_source ?? 'markdown'}`;
       if (!outKeys.has(key)) {
         try {
-          await tx.removeLink(slug, l.to_slug, l.link_type, l.link_source ?? undefined);
+          await tx.removeLink(slug, l.to_slug, l.link_type, l.link_source ?? undefined, removeSourceOpts);
           removed++;
         } catch {
           errors++;
@@ -779,7 +779,7 @@ async function runAutoLink(
       const key = `${l.from_slug}\u0000${l.link_type}`;
       if (!incKeys.has(key)) {
         try {
-          await tx.removeLink(l.from_slug, slug, l.link_type, 'frontmatter');
+          await tx.removeLink(l.from_slug, slug, l.link_type, 'frontmatter', removeSourceOpts);
           removed++;
         } catch {
           errors++;
@@ -804,15 +804,18 @@ const delete_page: Operation = {
   handler: async (ctx, p) => {
     const slug = p.slug as string;
     if (ctx.dryRun) return { dry_run: true, action: 'soft_delete_page', slug };
+    // v0.31.8 (D7): thread ctx.sourceId so multi-source brains soft-delete the
+    // intended row instead of always targeting (default, slug).
+    const sourceOpts = ctx.sourceId ? { sourceId: ctx.sourceId } : {};
     // v0.26.5: rewired from hard-delete to soft-delete. The hard-delete primitive
     // (engine.deletePage) is now reserved for purgeDeletedPages and explicit
     // tests. softDeletePage returns null when the slug is unknown OR already
     // soft-deleted (idempotent-as-null) — preserve that as a clean no-op shape.
-    const result = await ctx.engine.softDeletePage(slug);
+    const result = await ctx.engine.softDeletePage(slug, sourceOpts);
     if (result === null) {
       // Distinguish "not found" from "already soft-deleted" so the agent gets a
       // clear signal. Probe once with include_deleted to disambiguate.
-      const existing = await ctx.engine.getPage(slug, { includeDeleted: true });
+      const existing = await ctx.engine.getPage(slug, { includeDeleted: true, ...sourceOpts });
       if (!existing) {
         throw new OperationError('page_not_found', `Page not found: ${slug}`, 'Check the slug.');
       }
@@ -834,10 +837,12 @@ const restore_page: Operation = {
   handler: async (ctx, p) => {
     const slug = p.slug as string;
     if (ctx.dryRun) return { dry_run: true, action: 'restore_page', slug };
-    const ok = await ctx.engine.restorePage(slug);
+    // v0.31.8 (D7): thread ctx.sourceId.
+    const sourceOpts = ctx.sourceId ? { sourceId: ctx.sourceId } : {};
+    const ok = await ctx.engine.restorePage(slug, sourceOpts);
     if (!ok) {
       // Distinguish "not found" from "already active" (idempotent-as-false).
-      const existing = await ctx.engine.getPage(slug, { includeDeleted: true });
+      const existing = await ctx.engine.getPage(slug, { includeDeleted: true, ...sourceOpts });
       if (!existing) {
         throw new OperationError('page_not_found', `Page not found: ${slug}`, 'Check the slug.');
       }
@@ -1277,7 +1282,9 @@ const add_tag: Operation = {
   scope: 'write',
   handler: async (ctx, p) => {
     if (ctx.dryRun) return { dry_run: true, action: 'add_tag', slug: p.slug, tag: p.tag };
-    await ctx.engine.addTag(p.slug as string, p.tag as string);
+    // v0.31.8 (D7): thread ctx.sourceId.
+    const sourceOpts = ctx.sourceId ? { sourceId: ctx.sourceId } : {};
+    await ctx.engine.addTag(p.slug as string, p.tag as string, sourceOpts);
     return { status: 'ok' };
   },
   cliHints: { name: 'tag', positional: ['slug', 'tag'] },
@@ -1294,7 +1301,8 @@ const remove_tag: Operation = {
   scope: 'write',
   handler: async (ctx, p) => {
     if (ctx.dryRun) return { dry_run: true, action: 'remove_tag', slug: p.slug, tag: p.tag };
-    await ctx.engine.removeTag(p.slug as string, p.tag as string);
+    const sourceOpts = ctx.sourceId ? { sourceId: ctx.sourceId } : {};
+    await ctx.engine.removeTag(p.slug as string, p.tag as string, sourceOpts);
     return { status: 'ok' };
   },
   cliHints: { name: 'untag', positional: ['slug', 'tag'] },
@@ -1307,7 +1315,9 @@ const get_tags: Operation = {
     slug: { type: 'string', required: true },
   },
   handler: async (ctx, p) => {
-    return ctx.engine.getTags(p.slug as string);
+    // v0.31.8 (D20): thread ctx.sourceId for read-side ops on multi-source brains.
+    const sourceOpts = ctx.sourceId ? { sourceId: ctx.sourceId } : {};
+    return ctx.engine.getTags(p.slug as string, sourceOpts);
   },
   scope: 'read',
   cliHints: { name: 'tags', positional: ['slug'] },
@@ -1328,9 +1338,17 @@ const add_link: Operation = {
   scope: 'write',
   handler: async (ctx, p) => {
     if (ctx.dryRun) return { dry_run: true, action: 'add_link', from: p.from, to: p.to };
+    // v0.31.8 (D7): single ctx.sourceId scopes both endpoints + origin. Cross-
+    // source link creation is out of scope for this wave; use the engine API
+    // directly for that edge case.
+    const linkOpts = ctx.sourceId
+      ? { fromSourceId: ctx.sourceId, toSourceId: ctx.sourceId, originSourceId: ctx.sourceId }
+      : undefined;
     await ctx.engine.addLink(
       p.from as string, p.to as string,
       (p.context as string) || '', (p.link_type as string) || '',
+      undefined, undefined, undefined,
+      linkOpts,
     );
     return { status: 'ok' };
   },
@@ -1348,7 +1366,10 @@ const remove_link: Operation = {
   scope: 'write',
   handler: async (ctx, p) => {
     if (ctx.dryRun) return { dry_run: true, action: 'remove_link', from: p.from, to: p.to };
-    await ctx.engine.removeLink(p.from as string, p.to as string);
+    const linkOpts = ctx.sourceId
+      ? { fromSourceId: ctx.sourceId, toSourceId: ctx.sourceId }
+      : undefined;
+    await ctx.engine.removeLink(p.from as string, p.to as string, undefined, undefined, linkOpts);
     return { status: 'ok' };
   },
   cliHints: { name: 'unlink', positional: ['from', 'to'] },
@@ -1361,7 +1382,10 @@ const get_links: Operation = {
     slug: { type: 'string', required: true },
   },
   handler: async (ctx, p) => {
-    return ctx.engine.getLinks(p.slug as string);
+    // v0.31.8 (D16): thread ctx.sourceId. When unset, engine falls through
+    // to cross-source view (back-compat).
+    const sourceOpts = ctx.sourceId ? { sourceId: ctx.sourceId } : {};
+    return ctx.engine.getLinks(p.slug as string, sourceOpts);
   },
   scope: 'read',
 };
@@ -1373,7 +1397,8 @@ const get_backlinks: Operation = {
     slug: { type: 'string', required: true },
   },
   handler: async (ctx, p) => {
-    return ctx.engine.getBacklinks(p.slug as string);
+    const sourceOpts = ctx.sourceId ? { sourceId: ctx.sourceId } : {};
+    return ctx.engine.getBacklinks(p.slug as string, sourceOpts);
   },
   scope: 'read',
   cliHints: { name: 'backlinks', positional: ['slug'] },
@@ -1450,12 +1475,14 @@ const add_timeline_entry: Operation = {
     if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== date) {
       throw new Error(`Invalid calendar date "${date}"`);
     }
+    // v0.31.8 (D7): thread ctx.sourceId.
+    const sourceOpts = ctx.sourceId ? { sourceId: ctx.sourceId } : {};
     await ctx.engine.addTimelineEntry(p.slug as string, {
       date,
       source: (p.source as string) || '',
       summary: p.summary as string,
       detail: (p.detail as string) || '',
-    });
+    }, sourceOpts);
     return { status: 'ok' };
   },
   cliHints: { name: 'timeline-add', positional: ['slug', 'date', 'summary'] },
@@ -1468,7 +1495,9 @@ const get_timeline: Operation = {
     slug: { type: 'string', required: true },
   },
   handler: async (ctx, p) => {
-    return ctx.engine.getTimeline(p.slug as string);
+    // v0.31.8 (D20): thread ctx.sourceId.
+    const sourceId = ctx.sourceId;
+    return ctx.engine.getTimeline(p.slug as string, sourceId ? { sourceId } : undefined);
   },
   scope: 'read',
   cliHints: { name: 'timeline', positional: ['slug'] },
@@ -1565,7 +1594,9 @@ const get_versions: Operation = {
     slug: { type: 'string', required: true },
   },
   handler: async (ctx, p) => {
-    const versions = await ctx.engine.getVersions(p.slug as string);
+    // v0.31.8 (D20): thread ctx.sourceId.
+    const sourceOpts = ctx.sourceId ? { sourceId: ctx.sourceId } : {};
+    const versions = await ctx.engine.getVersions(p.slug as string, sourceOpts);
     // Same takes-allow-list privacy boundary as get_page. Snapshots persist
     // historical compiled_truth verbatim, including the takes fence, so
     // a remote token bypassing get_page via /history would re-introduce
@@ -1588,8 +1619,12 @@ const revert_version: Operation = {
   scope: 'write',
   handler: async (ctx, p) => {
     if (ctx.dryRun) return { dry_run: true, action: 'revert_version', slug: p.slug, version_id: p.version_id };
-    await ctx.engine.createVersion(p.slug as string);
-    await ctx.engine.revertToVersion(p.slug as string, p.version_id as number);
+    // v0.31.8 (D7): thread ctx.sourceId so multi-source brains revert the
+    // intended page row instead of whichever same-slug row Postgres returns
+    // first.
+    const sourceOpts = ctx.sourceId ? { sourceId: ctx.sourceId } : {};
+    await ctx.engine.createVersion(p.slug as string, sourceOpts);
+    await ctx.engine.revertToVersion(p.slug as string, p.version_id as number, sourceOpts);
     return { status: 'reverted' };
   },
   cliHints: { name: 'revert', positional: ['slug', 'version_id'] },
@@ -1637,7 +1672,9 @@ const put_raw_data: Operation = {
   scope: 'write',
   handler: async (ctx, p) => {
     if (ctx.dryRun) return { dry_run: true, action: 'put_raw_data', slug: p.slug, source: p.source };
-    await ctx.engine.putRawData(p.slug as string, p.source as string, p.data as object);
+    // v0.31.8 (D7 + D21): thread ctx.sourceId.
+    const sourceOpts = ctx.sourceId ? { sourceId: ctx.sourceId } : {};
+    await ctx.engine.putRawData(p.slug as string, p.source as string, p.data as object, sourceOpts);
     return { status: 'ok' };
   },
 };
@@ -1650,7 +1687,9 @@ const get_raw_data: Operation = {
     source: { type: 'string', description: 'Filter by source' },
   },
   handler: async (ctx, p) => {
-    return ctx.engine.getRawData(p.slug as string, p.source as string | undefined);
+    // v0.31.8 (D20 + D21): thread ctx.sourceId.
+    const sourceOpts = ctx.sourceId ? { sourceId: ctx.sourceId } : {};
+    return ctx.engine.getRawData(p.slug as string, p.source as string | undefined, sourceOpts);
   },
   scope: 'read',
 };
@@ -1676,7 +1715,9 @@ const get_chunks: Operation = {
     slug: { type: 'string', required: true },
   },
   handler: async (ctx, p) => {
-    return ctx.engine.getChunks(p.slug as string);
+    // v0.31.8 (D20): thread ctx.sourceId.
+    const sourceOpts = ctx.sourceId ? { sourceId: ctx.sourceId } : {};
+    return ctx.engine.getChunks(p.slug as string, sourceOpts);
   },
   scope: 'read',
 };
@@ -2401,8 +2442,8 @@ const extract_facts: Operation = {
   scope: 'write',
   handler: async (ctx, p) => {
     if (ctx.dryRun) return { dry_run: true, action: 'extract_facts' };
-    const { extractFactsFromTurn, isFactsExtractionEnabled } = await import('./facts/extract.ts');
-    const { resolveEntitySlug } = await import('./entities/resolve.ts');
+    const { isFactsExtractionEnabled } = await import('./facts/extract.ts');
+    const { runFactsPipeline } = await import('./facts/backstop.ts');
 
     // D15: kill switch. Operator can disable facts extraction across the
     // brain without binary downgrade by setting `facts.extraction_enabled`
@@ -2412,78 +2453,33 @@ const extract_facts: Operation = {
       return { inserted: 0, duplicate: 0, superseded: 0, fact_ids: [], skipped: 'extraction_disabled' };
     }
 
-    const sourceId = ctx.sourceId ?? 'default';
-    const visibility = p.visibility === 'world' ? 'world' : 'private';
+    // v0.31.2: routed through the shared pipeline (PR1 commit 9). Anti-loop
+    // dream-generated check stays at the op layer because extract_facts is
+    // an explicit user op without a parsedPage — the eligibility predicate
+    // doesn't apply, but the dream-generated guard still does.
+    if (p.is_dream_generated === true) {
+      return { inserted: 0, duplicate: 0, superseded: 0, fact_ids: [], skipped: 'dream_generated' };
+    }
 
-    const facts = await extractFactsFromTurn({
-      turnText: p.turn_text as string,
+    const sourceId = ctx.sourceId ?? 'default';
+    const visibility: 'private' | 'world' = p.visibility === 'world' ? 'world' : 'private';
+
+    const r = await runFactsPipeline(p.turn_text as string, {
+      engine: ctx.engine,
+      sourceId,
       sessionId: typeof p.session_id === 'string' ? p.session_id : null,
       entityHints: Array.isArray(p.entity_hints) ? (p.entity_hints as string[]) : undefined,
       source: 'mcp:extract_facts',
-      isDreamGenerated: p.is_dream_generated === true,
+      visibility,
+      mode: 'inline',  // declarative; runFactsPipeline always inline
     });
 
-    let inserted = 0;
-    let duplicate = 0;
-    let superseded = 0;
-    const fact_ids: number[] = [];
-
-    for (const f of facts) {
-      const slug = f.entity_slug
-        ? await resolveEntitySlug(ctx.engine, sourceId, f.entity_slug)
-        : null;
-
-      const candidates = slug
-        ? await ctx.engine.findCandidateDuplicates(sourceId, slug, f.fact, {
-            embedding: f.embedding ?? undefined,
-            k: 5,
-          })
-        : [];
-
-      // Cosine fast-path inline for engine consistency. The classifier path
-      // is exercised by the offline `classifyAgainstCandidates` helper which
-      // ops can call when they want richer dedup; for the MCP op we ship
-      // with the cheap path + recency-only fallback to keep per-turn latency
-      // bounded. Tests pin the cheap-path threshold.
-      let matchedExisting: number | null = null;
-      if (f.embedding && candidates.length > 0) {
-        const { cosineSimilarity } = await import('./facts/classify.ts');
-        let topId: number | null = null;
-        let topScore = -1;
-        for (const c of candidates) {
-          if (!c.embedding) continue;
-          const s = cosineSimilarity(f.embedding, c.embedding);
-          if (s > topScore) { topScore = s; topId = c.id; }
-        }
-        if (topId !== null && topScore >= 0.95) matchedExisting = topId;
-      }
-
-      if (matchedExisting !== null) {
-        duplicate += 1;
-        fact_ids.push(matchedExisting);
-        continue;
-      }
-
-      const result = await ctx.engine.insertFact(
-        {
-          fact: f.fact,
-          kind: f.kind,
-          entity_slug: slug,
-          visibility,
-          source: f.source,
-          source_session: f.source_session ?? null,
-          confidence: f.confidence,
-          embedding: f.embedding ?? null,
-        },
-        { source_id: sourceId },
-      );
-      fact_ids.push(result.id);
-      if (result.status === 'inserted') inserted += 1;
-      else if (result.status === 'duplicate') duplicate += 1;
-      else superseded += 1;
-    }
-
-    return { inserted, duplicate, superseded, fact_ids };
+    return {
+      inserted: r.inserted,
+      duplicate: r.duplicate,
+      superseded: r.superseded,
+      fact_ids: r.fact_ids,
+    };
   },
 };
 
@@ -2561,6 +2557,10 @@ const recall: Operation = {
         kind: r.kind,
         entity_slug: r.entity_slug,
         visibility: r.visibility,
+        // v0.31.2: notability surfaced to recall consumers (CLI, MCP, admin).
+        // Pre-v46 brains return 'medium' via the row mapper's fallback so the
+        // contract stays total.
+        notability: r.notability,
         valid_from: r.valid_from.toISOString(),
         valid_until: r.valid_until?.toISOString() ?? null,
         expired_at: r.expired_at?.toISOString() ?? null,

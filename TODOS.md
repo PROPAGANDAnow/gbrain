@@ -1,5 +1,71 @@
 # TODOS
 
+## Embedding-provider follow-ups (v0.32.0)
+
+- [ ] **v0.32.x: Vertex AI ADC embedding provider (#729 originally).** lucha0404
+  prototyped this with single-source-JSON via `GOOGLE_APPLICATION_CREDENTIALS`.
+  Real ADC is the full chain (metadata server, gcloud creds, service-account
+  JSON). The recipe needs to either use `@ai-sdk/google-vertex` (one new
+  dep, native fit) or implement the chain via Bun.crypto.subtle for RS256
+  JWT signing (zero dep, ~150 lines + RS256 spike). Original Q3 chose
+  zero-dep; revisit the dep budget when scoping.
+
+- [ ] **v0.32.x: GitHub Copilot embeddings (#691 originally).** tonyxu-io
+  proposed adding Copilot's Metis embedding endpoint as a sidecar recipe.
+  Codex review caught that this is not a recipe-add — it's an outbound OAuth
+  product surface (login flow, browser/device flow, refresh, UX). Needs its
+  own design pass: where does the token live? `~/.gbrain/oauth/copilot.json`
+  mode 0600 was the v0.32 plan; revisit + write `gbrain auth login copilot`.
+
+- [ ] **v0.32.x: OpenAI Codex OAuth chat provider (#698 originally).** perlantir
+  proposed a chat-only provider that reuses ChatGPT subscription auth instead
+  of API keys. Same OAuth-product-surface argument as #691. Same shared
+  infra: `~/.gbrain/oauth/<provider>.json` + `gbrain auth login <provider>`.
+  Build alongside #691 in one OAuth-subsystem wave.
+
+- [ ] **v0.32.x: CJK PGLite keyword fallback (#765 extracted).** 313094319-sudo
+  hit a real gap: PGLite's FTS doesn't tokenize CJK well, so Chinese queries
+  return empty results even with proper embeddings. Their PR added a
+  hasCJK detection branch in `searchKeyword` that switches to LIKE-based
+  fuzzy matching with a custom scoring function. ~150 lines of new SQL +
+  scoring + tests. Worth its own focused PR rather than folded into the
+  v0.32 wave's adjacent-fix lane. Extract `extractSearchTokens`,
+  `normalizeSearchText`, `hasCJK` helpers + the CJK branch in
+  `pglite-engine.ts:searchKeyword`. Includes tests for romaji + Korean
+  Hangul + traditional/simplified Chinese.
+
+- [ ] **v0.32.x: interactive provider chooser in `gbrain init`.** The full
+  wizard piece of the v0.32 discoverability lane was deferred. Today
+  `gbrain init` (no flags, TTY) silently uses OpenAI default. Plan: hook
+  into `init.ts:resolveAIOptions`, when no `--model` AND TTY AND not
+  `--non-interactive`, call `runExplain([])` (non-JSON path) from
+  `providers.ts:233-350` to print the provider matrix, then prompt with
+  readline (mirror `supabaseWizard()` at `init.ts:108`). Suggest
+  recommended based on env detection. Refuse `user_provided_models`
+  shorthand (already done in v0.32.0). Tests:
+  `test/init-provider-wizard.test.ts` (TTY → prompt fires; non-TTY →
+  falls through; invalid choice → re-prompts).
+
+- [ ] **v0.32.x: real-credentials per-recipe smoke-test CI matrix.** Codex
+  finding #6 noted that unit tests via `__setEmbedTransportForTests` prove
+  routing but not contract correctness with the actual provider HTTP
+  shape. Provider APIs change quietly (Voyage encoding-format, MiniMax
+  type field, Azure header). One real-call per recipe per month catches
+  drift before users do; <$1/run estimated. Requires API-key budget
+  approval + repo secrets.
+
+- [ ] **v0.32.x: MiniMax asymmetric retrieval support.** v0.32 ships
+  `embo-01` with `type: 'db'` for both indexing and queries (symmetric
+  retrieval). True asymmetric needs a query/document signal threaded
+  through the embed seam. Worth it for MiniMax users who care about
+  retrieval quality on Chinese content; defer until users complain.
+
+- [ ] **v0.32.x: un-hardcode the multimodal dispatch at gateway.ts:583.**
+  Currently `recipe.id !== 'voyage'` is hardcoded — harmless until a
+  second multimodal recipe lands. Make it table-driven via
+  `Recipe.touchpoints.embedding.supports_multimodal` +
+  `multimodal_models`. ~10 lines + a contract test.
+
 ## v0.31.2 follow-ups
 
 ### Investigate: `gbrain query <common-keyword>` infinite loop
@@ -1705,3 +1771,35 @@ doesn't gate on scopes. Adding per-tool scope enforcement would let
 **Effort estimate:** M (human: ~1 day / CC: ~30 min for the schema-aware gate).
 **Priority:** P3.
 **Depends on:** Nothing.
+
+---
+
+### `@garrytan/gbrain` scoped-name npm publishing
+**What:** Publish gbrain to npm under the scoped name `@garrytan/gbrain`
+instead of the bare `gbrain` name. Provides structural defense against the
+unrelated `gbrain@1.x` squatter package on npm.
+
+**Why:** `classifyBunInstall()` at `src/commands/upgrade.ts:395` does a
+best-effort fingerprint check on `repository.url` + `src/cli.ts` marker, with
+the comment explicitly accepting that signals are spoofable by a determined
+squatter. Scoped publishing is the structural answer that closes the loop:
+`bun add -g @garrytan/gbrain` cannot collide with any non-`@garrytan` package.
+
+**Pros:** closes the squatter vector; consistent with how high-trust npm
+packages are published; allows removing `classifyBunInstall`'s spoofable
+signals later.
+
+**Cons:** multi-week effort; needs reverse-compatible upgrade path for users
+on the bare-name install (`bun add -g gbrain` → recovery message pointing
+at the new scoped name); npm publishing flow changes; CI publish step needs
+scope-aware tagging.
+
+**Context:** tracked at `src/commands/upgrade.ts:392-394` since v0.29; reaffirmed
+during v0.31.8 codex outside-voice review. Issue #658 has the surface-level
+history.
+
+**Effort estimate:** L (human: ~1 week / CC: ~half a day for the publishing
+flow + recovery messaging).
+**Priority:** P2.
+**Depends on:** decision on whether to deprecate the bare name or dual-publish
+during a transition window.
