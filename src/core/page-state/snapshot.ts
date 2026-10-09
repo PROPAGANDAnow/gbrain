@@ -74,7 +74,11 @@ async function readSnapshotStatement(query: ReadQuery, slug: string, opts?: Page
     CROSS JOIN LATERAL (SELECT COALESCE((SELECT jsonb_agg(jsonb_build_object('visibility',w.visibility,'fact_hash',w.fact_hash,'withdrawn_at',w.withdrawn_at)
       ORDER BY w.visibility,w.fact_hash) FROM (SELECT visibility,fact_hash,min(withdrawn_at) AS withdrawn_at
         FROM fact_withdrawals WHERE source_id=p.source_id AND (subject='*' OR subject=p.slug)
-        ${opts?.excludePrivate ? "AND visibility='world'" : ''} GROUP BY visibility,fact_hash) w), '[]'::jsonb) AS snapshot_withdrawals) wd`, params);
+        ${opts?.excludePrivate ? "AND visibility='world'" : ''} GROUP BY visibility,fact_hash) w), '[]'::jsonb)
+      || COALESCE((SELECT jsonb_agg(jsonb_build_object('visibility',x.visibility,'fact_hash',x.fact_hash,'withdrawn_at',x.purged_at,'purged',true)
+        ORDER BY x.visibility,x.fact_hash) FROM (SELECT visibility,fact_hash,min(purged_at) AS purged_at
+          FROM fact_purges WHERE source_id=p.source_id AND (subject='*' OR subject=p.slug)
+          ${opts?.excludePrivate ? "AND visibility='world'" : ''} GROUP BY visibility,fact_hash) x), '[]'::jsonb) AS snapshot_withdrawals) wd`, params);
   if (!rows.length) return null;
   const row = rows[0];
   if (opts?.requireUnambiguous && Number(row.snapshot_matches) > 1) throw new PageSnapshotAmbiguousError();
