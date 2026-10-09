@@ -90,6 +90,7 @@ test/persistence-preactivation-claim.test.ts
 test/persistence-reconcile-git-dirty-6138.test.ts
 test/persistence-skill-bundles.serial.test.ts
 test/persistence-skill-crash.slow.test.ts
+test/persistence-skip-cost.test.ts
 test/persistence-sync-cursor-options.test.ts
 test/persistence-sync-fence-holds.test.ts
 test/persistence-sync-holds.test.ts

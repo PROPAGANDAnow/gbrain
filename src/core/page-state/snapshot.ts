@@ -19,6 +19,10 @@ export async function overlayCanonicalBodies(query: ReadQuery, body: string, tim
 
 /**
  * One MVCC statement binds content, tags, identity and withdrawals to one revision.
+ * The normalized body and timeline fingerprints feed only the withdrawal overlay,
+ * so the statement computes them only for a page with withdrawals (as the batch
+ * reader in page-snapshot-batch.ts does): per-line regexp over the whole body
+ * was most of the cost of every snapshot read.
  *
  * An alias-resolving read first runs the exact-slug statement: an exact match
  * outranks every alias match, so a hit is the row the alias statement would
@@ -61,15 +65,16 @@ async function readSnapshotStatement(query: ReadQuery, slug: string, opts?: Page
   ) SELECT p.*,
     (SELECT s.incarnation FROM sources s WHERE s.id=p.source_id) AS source_incarnation,
     COALESCE((SELECT jsonb_agg(t.tag ORDER BY t.tag) FROM tags t WHERE t.page_id=p.id), '[]'::jsonb) AS snapshot_tags,
-    COALESCE((SELECT jsonb_agg(jsonb_build_object('visibility',w.visibility,'fact_hash',w.fact_hash,'withdrawn_at',w.withdrawn_at)
+    wd.snapshot_withdrawals,
+    CASE WHEN wd.snapshot_withdrawals <> '[]'::jsonb THEN (SELECT string_agg(regexp_replace(lower(line), '[[:space:]]+', ' ', 'g'), chr(10) ORDER BY ord)
+      FROM unnest(string_to_array(p.compiled_truth,chr(10))) WITH ORDINALITY AS lines(line,ord)) END AS fingerprint_body,
+    CASE WHEN wd.snapshot_withdrawals <> '[]'::jsonb THEN (SELECT string_agg(regexp_replace(lower(line), '[[:space:]]+', ' ', 'g'), chr(10) ORDER BY ord)
+      FROM unnest(string_to_array(p.timeline,chr(10))) WITH ORDINALITY AS lines(line,ord)) END AS fingerprint_timeline
+    FROM chosen p
+    CROSS JOIN LATERAL (SELECT COALESCE((SELECT jsonb_agg(jsonb_build_object('visibility',w.visibility,'fact_hash',w.fact_hash,'withdrawn_at',w.withdrawn_at)
       ORDER BY w.visibility,w.fact_hash) FROM (SELECT visibility,fact_hash,min(withdrawn_at) AS withdrawn_at
         FROM fact_withdrawals WHERE source_id=p.source_id AND (subject='*' OR subject=p.slug)
-        ${opts?.excludePrivate ? "AND visibility='world'" : ''} GROUP BY visibility,fact_hash) w), '[]'::jsonb) AS snapshot_withdrawals,
-    (SELECT string_agg(regexp_replace(lower(line), '[[:space:]]+', ' ', 'g'), chr(10) ORDER BY ord)
-      FROM unnest(string_to_array(p.compiled_truth,chr(10))) WITH ORDINALITY AS lines(line,ord)) AS fingerprint_body,
-    (SELECT string_agg(regexp_replace(lower(line), '[[:space:]]+', ' ', 'g'), chr(10) ORDER BY ord)
-      FROM unnest(string_to_array(p.timeline,chr(10))) WITH ORDINALITY AS lines(line,ord)) AS fingerprint_timeline
-    FROM chosen p`, params);
+        ${opts?.excludePrivate ? "AND visibility='world'" : ''} GROUP BY visibility,fact_hash) w), '[]'::jsonb) AS snapshot_withdrawals) wd`, params);
   if (!rows.length) return null;
   const row = rows[0];
   if (opts?.requireUnambiguous && Number(row.snapshot_matches) > 1) throw new PageSnapshotAmbiguousError();
