@@ -1889,10 +1889,6 @@ async function extractLinksFromDB(
   const grammar = await readLineGrammarSettings(engine), lineGrammar = { enabled: grammar.enabled, allowUndeclaredTypes: grammar.allowUndeclaredTypes };
   let skippedSettingsChanged = 0;
   progress.start('extract.links_db', walkRefs.length);
-  // The walk rewrites every page's links; on PGLite (no autovacuum) `links` keeps
-  // its pre-walk statistics, so the per-page link statements plan as scans and
-  // slow down as the table fills. Same upkeep as the stale drain, every
-  // `import.analyze_every_pages` walked pages.
   const plannerTick = dryRun ? async () => {} : await plannerStatsForLinkDrain(engine, async () => walkRefs.length);
 
   // Dedup in dry-run only — DB enforces uniqueness via ON CONFLICT in batch writes.

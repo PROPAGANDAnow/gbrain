@@ -130,7 +130,7 @@ import {
 import { hasCJK } from './cjk.ts';
 import * as factsImpl from './engine-sql/facts.ts';
 import * as takesImpl from './engine-sql/takes.ts';
-import { PgliteCheckpointGuard, writesWal } from './pglite-engine/checkpoint-guard.ts';
+import { PgliteCheckpointGuard, guardedHandle, writesWal } from './pglite-engine/checkpoint-guard.ts';
 import { pgliteExecutor } from './engine-sql/dialect-pglite.ts';
 import type { SqlExecutor } from './engine-sql/executor.ts';
 import { scopedRead, unscopedExecutor } from './engine-sql/brands.ts';
@@ -760,17 +760,7 @@ export class PGLiteEngine implements BrainEngine {
    * returns the tx handle) runs migrated domain SQL inside its transaction.
    */
   private get engineSql(): SqlExecutor {
-    const db = this.db;
-    if (this._pageTransaction || this._dbWork === null) return pgliteExecutor(db);
-    // #5449: engine-sql writes outside engine.transaction() (autocommit statements and
-    // executor transactions) take the same WAL checkpoint guard as executeRaw/transaction.
-    const guard = this._checkpointGuard ??= new PgliteCheckpointGuard();
-    return pgliteExecutor({
-      query: ((sql: string, params?: unknown[]) => writesWal(sql)
-        ? guard.runStatement(q => db.query(q), () => db.query(sql, params))
-        : db.query(sql, params)) as PGlite['query'],
-      transaction: (fn => guard.runOutermost(q => db.query(q), () => db.transaction(fn))) as PGlite['transaction'],
-    });
+    return pgliteExecutor(this._pageTransaction || this._dbWork === null ? this.db : guardedHandle(this.db, this._checkpointGuard ??= new PgliteCheckpointGuard()));
   }
 
   // Lifecycle
