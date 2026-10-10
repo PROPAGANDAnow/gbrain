@@ -155,9 +155,20 @@ describe.skipIf(!hasDatabase())('two consumers on one host (Postgres, #6317)', (
     resetWriteSwitches();
     await engine.executeRaw('DELETE FROM persistence_consumers');
     const make = () => new PersistenceConsumer(engine, { engine: 'postgres' }, preparePersistedMutation, { hostId, pollMs: 1_000_000, onError: () => {} });
-    const a = new WaiterOnlyConsumer(engine, { engine: 'postgres' }, make, { kind: 'jobs', hostId, pollMs: 1_000_000, idleMaxMs: 1_000_000, heartbeatEveryMs: 1_000_000, log: () => {} });
+    // "Both probe before either has written a row" is the precondition, not a race to win: each starter's first read
+    // waits until the other's first read has started, so neither sees the row the other's start-up writes.
+    const bothRead = Promise.withResolvers<void>();
+    let firstReads = 0;
+    const readTogether = () => {
+      let first = true;
+      return async (signal: AbortSignal) => {
+        if (first) { first = false; if (++firstReads === 2) bothRead.resolve(); await bothRead.promise; }
+        return listHostConsumers(engine, hostId, { signal });
+      };
+    };
+    const a = new WaiterOnlyConsumer(engine, { engine: 'postgres' }, make, { kind: 'jobs', hostId, readConsumers: readTogether(), pollMs: 1_000_000, idleMaxMs: 1_000_000, heartbeatEveryMs: 1_000_000, log: () => {} });
     resetConsumerIdentityForTest({ pid: process.pid + 100_000, nonce: 'second-starter' });
-    const b = new WaiterOnlyConsumer(engine, { engine: 'postgres' }, make, { kind: 'sync', hostId, pollMs: 1_000_000, idleMaxMs: 1_000_000, heartbeatEveryMs: 1_000_000, log: () => {} });
+    const b = new WaiterOnlyConsumer(engine, { engine: 'postgres' }, make, { kind: 'sync', hostId, readConsumers: readTogether(), pollMs: 1_000_000, idleMaxMs: 1_000_000, heartbeatEveryMs: 1_000_000, log: () => {} });
     resetConsumerIdentityForTest(original);
     try {
       // Both probe before either has written a row: the known residual (a preference, not a fenced role).
