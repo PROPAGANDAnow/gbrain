@@ -18,6 +18,9 @@ d('search planner statistics guard on Postgres', () => {
     await engine.executeRaw('ANALYZE pages');
     await engine.executeRaw('ANALYZE content_chunks');
     await engine.executeRaw("DELETE FROM pg_statistic WHERE starelid = 'pages'::regclass");
+    // The fixtures are a few pages; the guard only acts on a table sampled at 500 rows or more (reltuples, which a
+    // deleted pg_statistic keeps), so the fixture stands in for a large brain that lost its statistics.
+    await engine.executeRaw("UPDATE pg_class SET reltuples = 5000 WHERE oid = 'pages'::regclass");
   }, 60_000);
   afterAll(async () => { await teardownDB(); });
 

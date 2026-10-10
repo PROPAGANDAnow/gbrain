@@ -37,7 +37,7 @@ Efficiency wave 7. Every number below is interleaved base vs this branch on the 
 - The write gate no longer flags an assistant's ordinary replies in saved chat transcripts ("As an AI language model, I don't…, but I can…") as instructions to an agent; planted instructions are still caught. (GBRA-58)
 - Importing or saving a page no longer slows down on a brain with many purged facts; gbrain looks up only the purges that match the page's own fact rows (12k tombstones: PGLite import 159 → 57 ms, Postgres 161 → 50 ms). Migration v231 adds two `fact_purges` indexes. (GBRA-58)
 - `test/e2e/persistence-idle-pool.test.ts` awaits the drain, dumps `pg_stat_activity` on failure and holds past one probe cycle. (GBRA-64)
-- Tests: `persistence-skip-cost.test.ts`, `persistence-host-identity-cache.serial.test.ts`, `pglite-checkpoint-guard.test.ts` (with a WAL worker fixture), `extract-links-db-planner-stats.test.ts`, `search-statistics-guard.test.ts` + its Postgres e2e, `purge-global-marker.test.ts`, and a reference-predicate equivalence case in `persistence-git-coalescing-5530.slow.test.ts` (every fence, recovery, mirror, owner and readiness state claims exactly the old predicate's rows, both engines).
+- Tests: `persistence-skip-cost.test.ts`, `persistence-host-identity-cache.test.ts`, `pglite-checkpoint-guard.test.ts` (with a WAL worker fixture), `extract-links-db-planner-stats.test.ts`, `search-statistics-guard.test.ts` + its Postgres e2e, `purge-global-marker.test.ts`, and a reference-predicate equivalence case in `persistence-git-coalescing-5530.slow.test.ts` (every fence, recovery, mirror, owner and readiness state claims exactly the old predicate's rows, both engines).
 
 ## [0.60.140.0] - 2026-10-10
 

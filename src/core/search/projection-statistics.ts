@@ -127,18 +127,26 @@ export async function withChunkStatisticsRefresh<T>(engine: BrainEngine, changed
   return out;
 }
 
-/** Each SEARCH_STATISTICS_COLUMNS column whose table holds rows but has no pg_stats row ($1 tables, $2 columns). */
+/**
+ * Below this many rows (pg_class.reltuples, which pg_upgrade and a deleted pg_statistic both keep) a table's missing
+ * statistics cost search nothing measurable, and autovacuum leaves a small table unanalyzed until 50 + 10% of it
+ * changes; a table never sampled at all (reltuples -1) is a fresh one that import's refresh or autovacuum samples.
+ */
+const SEARCH_STATISTICS_MIN_ROWS = 500;
+
+/** Each SEARCH_STATISTICS_COLUMNS column whose table holds SEARCH_STATISTICS_MIN_ROWS rows but has no pg_stats row ($1 tables, $2 columns). */
 const MISSING_SEARCH_STATISTICS_SQL = `SELECT r.tablename || '.' || r.attname AS col
   FROM unnest($1::text[], $2::text[]) WITH ORDINALITY AS r(tablename, attname, position)
   JOIN pg_class t ON t.oid = to_regclass(quote_ident(current_schema()) || '.' || r.tablename)
- WHERE (t.reltuples > 0 OR (t.reltuples < 0 AND pg_relation_size(t.oid) > 0))
+ WHERE t.reltuples >= ${SEARCH_STATISTICS_MIN_ROWS}
    AND has_table_privilege(t.oid, 'SELECT') AND NOT row_security_active(t.oid)
    AND NOT EXISTS (SELECT 1 FROM pg_stats s WHERE s.schemaname = current_schema() AND s.tablename = r.tablename AND s.attname = r.attname)
  ORDER BY r.position`;
 
 /**
  * Postgres: the planner statistics search needs that are absent, as `table.column` (plus PROJECTION_STATISTICS_NAME
- * when the projection statistics are not collected). Empty when every one exists, the tables are empty, or this role
+ * when the projection statistics are not collected on such a table). Empty when every one exists, the tables hold fewer
+ * than SEARCH_STATISTICS_MIN_ROWS sampled rows, or this role
  * cannot see a table's statistics (pg_stats hides them under row security; that is not absence). Absent
  * statistics outlive autovacuum after pg_upgrade (it carries no statistics and resets the modification counters) or
  * a deleted pg_statistic; a restore regains them at autovacuum's next pass. The one test behind the write-pass skip
@@ -149,7 +157,8 @@ export async function missingSearchStatistics(engine: Pick<BrainEngine, 'execute
   const pairs = Object.entries(SEARCH_STATISTICS_COLUMNS).flatMap(([table, columns]) => columns.map(column => [table, column] as const));
   const rows = await engine.executeRaw<{ col: string }>(MISSING_SEARCH_STATISTICS_SQL, [pairs.map(p => p[0]), pairs.map(p => p[1])]);
   const missing = rows.map(row => row.col);
-  if (await readProjectionStatistics(engine) === 'uncollected') missing.push(PROJECTION_STATISTICS_NAME);
+  const [pages] = await engine.executeRaw<{ reltuples: number }>(`SELECT reltuples::float8 AS reltuples FROM pg_class WHERE oid = 'pages'::regclass`);
+  if (Number(pages?.reltuples ?? -1) >= SEARCH_STATISTICS_MIN_ROWS && await readProjectionStatistics(engine) === 'uncollected') missing.push(PROJECTION_STATISTICS_NAME);
   return missing;
 }
 
