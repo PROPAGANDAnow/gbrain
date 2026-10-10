@@ -758,7 +758,6 @@ export async function importFromContent(
       () => writePageAliases(tx, slug, sourceId ?? 'default', parsed, opts.activePack, mentionPolicy),
     ]);
     const pageId = written && written.deleted_at == null ? written.id : undefined;
-    // A coordinated caller stamps the chunker version with its text seal, after its read-back (sealImportedPage).
     const deferSeal = opts.coordinated === true && pageId !== undefined;
     await pipelined(tx, [
       async () => {
@@ -842,8 +841,7 @@ export async function importFromContent(
       // guard. Deferred provider results cannot replace newer text or chunks.
       persistedProjection = await readProjectionSnapshot(tx, slug, txOpts.sourceId);
     }
-    return { pageId: written && written.deleted_at == null ? written.id : undefined, sealed: !opts.coordinated && !opts.beforeCommit,
-      ...(deferSeal ? { chunkerSeal: MARKDOWN_CHUNKER_VERSION } : {}) };
+    return { pageId, sealed: !opts.coordinated && !opts.beforeCommit, ...(deferSeal ? { chunkerSeal: MARKDOWN_CHUNKER_VERSION } : {}) };
   };
   if (opts.prepare) return opts.prepare({
     slug, parsedPage, observedRevision: (existing as (typeof existing & { knowledge_revision?: string }) | null)?.knowledge_revision ?? null,
