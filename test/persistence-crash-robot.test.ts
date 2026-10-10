@@ -238,7 +238,7 @@ describe('lock order', () => {
       expect(clean.violations.slice(before)).toEqual([]);
       expect(clean.publications_reading_brain_for_share).toBeGreaterThan(0);
       // The request row is locked by one statement per publication: the `publication_started` stamp takes the lock
-      // (two statements, a bare FOR UPDATE and then the stamp, is the shape before v0.60.141.0).
+      // (two statements, a bare FOR UPDATE and then the stamp, is the shape before v0.60.142.0).
       expect(clean.publication_row_lock_statements_max).toBe(1);
       await world.engine.transaction(async tx => {
         await tx.executeRaw('SELECT id FROM sources WHERE id=$1 FOR SHARE', ['robot-0']);
