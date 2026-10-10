@@ -10,6 +10,18 @@ credits are retained; no result has been reassigned to another provider. Origina
 identifiers and attribution are available in the pre-removal Git revision
 `6040075c6cb95be5881cc2e1b76ef7d71f4e5d29` (retained on 2026-09-23).
 
+## [0.60.143.0] - 2026-10-10
+
+**The crash robot drops each run's database as soon as the run passes, so a transaction-mode pooler no longer holds every run's server connections until the budget ends. Harness only; no product behavior changes.**
+
+Master `f250a517c` failed the `Crash robot / postgres / Bun 1.4.0` cell with `FATAL: sorry, too many clients already` 25 runs into its 600 s budget. The robot gives every run its own database and, until now, kept all of them until the phase ended. Through the CI PgBouncer (wildcard `[databases]`, transaction mode) each run's database gets its own server pool, and PgBouncer keeps those connections for `server_idle_timeout` (600 s by default, the length of a full robot budget), so the server held about four idle backends per finished run: 111 server connections across 26 fixture databases in the failing cell against `max_connections=100`. The previous green masters ran the same cases with the same per-run counts and passed only because their slower early runs reached 22 cases before the budget closed; in the passing Bun 1.4.2 sibling, started at the same moment, PgBouncer's first `server idle timeout` closes came at 06:22:23, 46 s after the Bun 1.4.0 cell's first refusal at 06:21:37. Nothing in `#6412` (v0.60.142.0) changed how many connections a run opens.
+
+### Itemized changes
+
+- `scripts/persistence/robot-driver.ts`: a run that passes has its database dropped (`WITH (FORCE)`) before the next run starts, which ends the pooler's server connections to it. A failing run keeps its database for the retained-fixture metadata as before.
+- `scripts/persistence/validate.ts`, `scripts/persistence/failure-diagnostics.ts`: a failed Postgres gate records `connection_diagnostic` in the manifest: `max_connections`, the backend total and counts per database class (this harness's fixtures or other), state and wait class. No database name, query text or client address is included.
+- `test/e2e/persistence-robot-fixture-release.test.ts`: one replayed run through the pooler when `GBRAIN_PGBOUNCER_URL` names one (direct otherwise); the passed run's database must be gone with no backend attached (four idle pooler backends remained before the fix), and the connection diagnostic's shape is pinned.
+
 ## [0.60.142.0] - 2026-10-10
 
 **A file write's publication takes its request-row lock and its `publication_started` stamp in one statement instead of two. No behavior changes; one UPDATE fewer per published file.**
