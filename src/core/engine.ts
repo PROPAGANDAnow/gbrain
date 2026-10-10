@@ -1178,8 +1178,10 @@ export interface BrainEngine {
    * sealed at that chunker version after the insert. With `pageId` (the
    * caller's own write of that page in this transaction) the seal and the
    * insert are sent together and the seal's page is checked against it.
+   * With `deferSeal` as well, the caller stamps the chunker version and checks
+   * the page itself later in the same transaction (`sealImportedPage`).
    */
-  upsertChunks(slug: string, chunks: ChunkInput[], opts?: { sourceId?: string; embeddingColumn?: ResolvedColumn; expectedRevision?: string; sealChunkerVersion?: number; pageId?: number } & BatchOpts): Promise<void>;
+  upsertChunks(slug: string, chunks: ChunkInput[], opts?: { sourceId?: string; embeddingColumn?: ResolvedColumn; expectedRevision?: string; sealChunkerVersion?: number; pageId?: number; deferSeal?: true } & BatchOpts): Promise<void>;
   /**
    * Read every chunk for a page. Scope precedence mirrors getPage (#2555):
    * a federated grant (`sourceIds[]`) wins over scalar `sourceId`; with
